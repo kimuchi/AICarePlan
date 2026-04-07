@@ -31,18 +31,22 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
     const settingsId = process.env.SETTINGS_SPREADSHEET_ID;
     let facilityName = '';
     let managerName = '';
-    // 生成用モデル（ケアプラン生成向け。高品質推奨）
-    // 優先順位: 設定スプレッドシート > .env > デフォルト
-    let geminiModel = process.env.GEMINI_MODEL_GENERATE || 'gemini-2.5-flash-preview-05-20';
+    // 生成用モデルは .env から取得
+    const geminiModel = process.env.GEMINI_MODEL_GENERATE || 'gemini-2.5-flash-preview-05-20';
 
-    if (settingsId) {
+    // 事業所情報はリクエストから受け取る（フロントで選択済み）
+    const { facilityId } = req.body as any;
+
+    if (settingsId && facilityId) {
       try {
-        const generalRows = await getSheetData(settingsId, 'general!A:B', token);
-        if (generalRows) {
-          for (const row of generalRows) {
-            if (row[0] === 'facilityName') facilityName = row[1] || '';
-            if (row[0] === 'managerName') managerName = row[1] || '';
-            if (row[0] === 'geminiModelGenerate' && row[1]) geminiModel = row[1];
+        const facRows = await getSheetData(settingsId, 'facilities!A:D', token);
+        if (facRows) {
+          for (let i = 1; i < facRows.length; i++) {
+            if (facRows[i][0] === facilityId) {
+              facilityName = facRows[i][1] || '';
+              managerName = facRows[i][3] || '';
+              break;
+            }
           }
         }
       } catch {

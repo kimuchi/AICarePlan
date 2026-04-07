@@ -25,6 +25,7 @@ export default function App() {
   const [selectedUser, setSelectedUser] = useState<UserFolder | null>(null);
   const [selectedSources, setSelectedSources] = useState<SourceFile[]>([]);
   const [mode, setMode] = useState<BusinessMode>('shoki');
+  const [selectedFacilityId, setSelectedFacilityId] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [plans, setPlans] = useState<GeneratedPlan[]>([]);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
@@ -51,6 +52,7 @@ export default function App() {
     setStep(0);
     setSelectedUser(null);
     setSelectedSources([]);
+    setSelectedFacilityId('');
     setPlans([]);
     setExportUrl(null);
   };
@@ -87,7 +89,7 @@ export default function App() {
         address: '',
       };
 
-      const result = await analyzeSources(userInfo, sourceContents, mode);
+      const result = await analyzeSources(userInfo, sourceContents, mode, selectedFacilityId);
       setPlans(result.plans);
       setStep(2);
     } catch (err: any) {
@@ -281,6 +283,8 @@ export default function App() {
             onSelectSources={setSelectedSources}
             mode={mode}
             onModeChange={setMode}
+            selectedFacilityId={selectedFacilityId}
+            onFacilityChange={setSelectedFacilityId}
             onAnalyze={handleAnalyze}
             analyzing={analyzing}
           />

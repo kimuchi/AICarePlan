@@ -318,7 +318,7 @@ export async function initializeSettingsSpreadsheet(
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const existingSheets = meta.data.sheets?.map(s => s.properties?.title) || [];
 
-  const requiredSheets = ['general', 'prompts', 'allowlist', 'drafts', 'history'];
+  const requiredSheets = ['general', 'facilities', 'prompts', 'allowlist', 'userDefaults', 'drafts', 'history'];
   const sheetsToCreate = requiredSheets.filter(s => !existingSheets.includes(s));
 
   // Create missing sheets
@@ -341,29 +341,32 @@ export async function initializeSettingsSpreadsheet(
     });
   }
 
-  // Initialize general settings header
+  // Initialize general settings (シンプルに提案数のみ。AIモデル等は.env管理)
   if (sheetsToCreate.includes('general')) {
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'general!A1:B9',
+      range: 'general!A1:B2',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [
           ['key', 'value'],
-          ['facilityName', ''],
-          ['facilityAddress', ''],
-          ['managerName', ''],
-          ['userRootFolderId', process.env.USER_ROOT_FOLDER_ID || ''],
-          ['privateFolderName', process.env.PRIVATE_FOLDER_NAME || '利用者フォルダ'],
-          ['geminiModelGenerate', process.env.GEMINI_MODEL_GENERATE || 'gemini-2.5-flash-preview-05-20'],
-          ['geminiModelAnalyze', process.env.GEMINI_MODEL_ANALYZE || 'gemini-2.0-flash'],
           ['proposalCount', '3'],
         ],
       },
     });
   }
 
-  // Initialize prompts
+  // Initialize facilities (管理者が複数の事業所を登録)
+  if (sheetsToCreate.includes('facilities')) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: 'facilities!A1:D1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [['id', 'name', 'address', 'managerName']] },
+    });
+  }
+
+  // Initialize prompts with defaults
   if (sheetsToCreate.includes('prompts')) {
     const promptRows = [
       ['id', 'title', 'body'],
@@ -384,6 +387,16 @@ export async function initializeSettingsSpreadsheet(
       range: 'allowlist!A1:C1',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [['email', 'role', 'name']] },
+    });
+  }
+
+  // Initialize userDefaults (利用者ごとのデフォルト事業所を記憶)
+  if (sheetsToCreate.includes('userDefaults')) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: 'userDefaults!A1:D1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [['userEmail', 'clientFolderId', 'facilityId', 'updatedAt']] },
     });
   }
 

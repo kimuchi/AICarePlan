@@ -134,11 +134,12 @@ export type BusinessMode = 'kyotaku' | 'shoki';
 export async function analyzeSources(
   user: any,
   sourceContents: Record<string, string>,
-  mode: BusinessMode
+  mode: BusinessMode,
+  facilityId?: string
 ): Promise<{ plans: GeneratedPlan[] }> {
   return request('/api/analyze', {
     method: 'POST',
-    body: JSON.stringify({ user, sourceContents, mode }),
+    body: JSON.stringify({ user, sourceContents, mode, facilityId }),
   });
 }
 
@@ -208,4 +209,43 @@ export async function getHistory(): Promise<{ history: Array<{ userId: string; u
 
 export async function initSettings(): Promise<void> {
   await request('/api/settings/init', { method: 'POST' });
+}
+
+// ── Facilities ──
+
+export interface Facility {
+  id: string;
+  name: string;
+  address: string;
+  managerName: string;
+}
+
+export async function getFacilities(): Promise<{ facilities: Facility[] }> {
+  return request('/api/settings/facilities');
+}
+
+export async function updateFacilities(facilities: Facility[]): Promise<void> {
+  await request('/api/settings/facilities', {
+    method: 'PUT',
+    body: JSON.stringify({ facilities }),
+  });
+}
+
+// ── AI Models (read-only from .env) ──
+
+export async function getModels(): Promise<{ generate: string; analyze: string }> {
+  return request('/api/settings/models');
+}
+
+// ── User Defaults (per-client facility) ──
+
+export async function getUserDefaults(): Promise<{ defaults: Record<string, string> }> {
+  return request('/api/settings/user-defaults');
+}
+
+export async function setUserDefault(clientFolderId: string, facilityId: string): Promise<void> {
+  await request('/api/settings/user-defaults', {
+    method: 'PUT',
+    body: JSON.stringify({ clientFolderId, facilityId }),
+  });
 }

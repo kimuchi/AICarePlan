@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { S } from '../../styles';
-import { getUserSources, type SourceFile, type BusinessMode } from '../../api';
+import {
+  getUserSources, getFacilities, getUserDefaults, setUserDefault,
+  type SourceFile, type BusinessMode, type Facility,
+} from '../../api';
 
 interface Props {
   folderId: string;
@@ -10,22 +13,25 @@ interface Props {
   onSelectSources: (sources: SourceFile[]) => void;
   mode: BusinessMode;
   onModeChange: (mode: BusinessMode) => void;
+  selectedFacilityId: string;
+  onFacilityChange: (facilityId: string) => void;
   onAnalyze: () => void;
   analyzing: boolean;
 }
 
 export default function SourceSelect({
   folderId, folderName, userName, selectedSources, onSelectSources,
-  mode, onModeChange, onAnalyze, analyzing,
+  mode, onModeChange, selectedFacilityId, onFacilityChange, onAnalyze, analyzing,
 }: Props) {
   const [sources, setSources] = useState<SourceFile[]>([]);
+  const [facilities, setFacilities] = useState<Facility[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     setLoading(true);
-    getUserSources(folderId, folderName)
-      .then(r => {
+    Promise.all([
+      getUserSources(folderId, folderName).then(r => {
         setSources(r.sources);
         // Auto-select latest of each category
         const byCategory = new Map<string, SourceFile>();
@@ -35,7 +41,24 @@ export default function SourceSelect({
           }
         }
         onSelectSources(Array.from(byCategory.values()));
-      })
+      }),
+      getFacilities().then(r => {
+        setFacilities(r.facilities);
+        // If no facility selected yet, try to load user default
+        if (!selectedFacilityId && r.facilities.length > 0) {
+          getUserDefaults().then(d => {
+            const defaultFacId = d.defaults[folderId];
+            if (defaultFacId && r.facilities.some(f => f.id === defaultFacId)) {
+              onFacilityChange(defaultFacId);
+            } else {
+              onFacilityChange(r.facilities[0].id);
+            }
+          }).catch(() => {
+            onFacilityChange(r.facilities[0].id);
+          });
+        }
+      }),
+    ])
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [folderId]);
@@ -50,13 +73,49 @@ export default function SourceSelect({
     }
   };
 
+  const handleFacilityChange = (facId: string) => {
+    onFacilityChange(facId);
+    // Save as default for this client
+    setUserDefault(folderId, facId).catch(() => {});
+  };
+
+  const selectedFacility = facilities.find(f => f.id === selectedFacilityId);
+
   return (
     <div>
-      <h2 style={S.stepTitle}>Googleドライブから情報源を選択</h2>
+      <h2 style={S.stepTitle}>情報源と事業所を選択</h2>
       <p style={S.stepDesc}>
         <span style={S.avatar2}>{userName[0]}</span>
         {userName}さんの関連ファイル
       </p>
+
+      {/* Facility selector */}
+      {facilities.length > 0 && (
+        <div style={{ marginBottom: 20, padding: '16px 20px', background: '#fff', borderRadius: 12, border: '1px solid #e8ecf1' }}>
+          <div style={S.modeLabel}>事業所:</div>
+          <select
+            style={{ ...S.input, maxWidth: 500 }}
+            value={selectedFacilityId}
+            onChange={e => handleFacilityChange(e.target.value)}
+          >
+            {facilities.map(f => (
+              <option key={f.id} value={f.id}>
+                {f.name}（{f.managerName}）
+              </option>
+            ))}
+          </select>
+          {selectedFacility && (
+            <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+              {selectedFacility.address}
+            </p>
+          )}
+        </div>
+      )}
+      {facilities.length === 0 && !loading && (
+        <div style={{ marginBottom: 20, padding: '12px 16px', background: '#fef3c7', borderRadius: 10, border: '1px solid #fde68a', fontSize: 13, color: '#92400e' }}>
+          事業所が登録されていません。設定画面で事業所を登録してください。
+        </div>
+      )}
 
       {/* Mode selector */}
       <div style={{ marginBottom: 20 }}>
@@ -66,14 +125,14 @@ export default function SourceSelect({
             style={mode === 'kyotaku' ? S.modeRadioActive : S.modeRadio}
             onClick={() => onModeChange('kyotaku')}
           >
-            <span>{mode === 'kyotaku' ? '●' : '○'}</span>
+            <span>{mode === 'kyotaku' ? '\u25CF' : '\u25CB'}</span>
             居宅介護支援（通常の居宅サービス計画書）
           </div>
           <div
             style={mode === 'shoki' ? S.modeRadioActive : S.modeRadio}
             onClick={() => onModeChange('shoki')}
           >
-            <span>{mode === 'shoki' ? '●' : '○'}</span>
+            <span>{mode === 'shoki' ? '\u25CF' : '\u25CB'}</span>
             小規模多機能型居宅介護（兼小規模多機能型居宅介護計画書）
           </div>
         </div>
@@ -117,8 +176,8 @@ export default function SourceSelect({
 
       <div style={S.stepActions}>
         <button
-          style={selectedSources.length > 0 ? S.primaryBtn : S.disabledBtn}
-          disabled={selectedSources.length === 0 || analyzing}
+          style={selectedSources.length > 0 && selectedFacilityId ? S.primaryBtn : S.disabledBtn}
+          disabled={selectedSources.length === 0 || !selectedFacilityId || analyzing}
           onClick={onAnalyze}
         >
           AI分析を実行 &rarr;
