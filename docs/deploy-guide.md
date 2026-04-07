@@ -337,7 +337,7 @@ npm run dev
 
 ## 9. Cloud Run へのデプロイ
 
-### 9.1 gcloud の認証確認
+### 9.1 事前準備：gcloud の認証
 
 ```powershell
 # ログイン状態を確認
@@ -350,54 +350,65 @@ gcloud auth login
 gcloud config set project YOUR_PROJECT_ID
 ```
 
-### 9.2 Artifact Registry リポジトリの作成（初回のみ）
+### 9.2 デプロイの実行（npm コマンド1つで完了）
+
+`.env` ファイルに必要な値がすべて記入されていることを確認したら、以下を実行するだけです:
 
 ```powershell
-gcloud artifacts repositories create careplan-repo `
-  --repository-format=docker `
-  --location=asia-northeast1 `
-  --description="Care Plan App Docker images"
+npm run deploy:cloudrun
 ```
 
-### 9.3 Cloud Build でビルド＆デプロイ
+これだけで以下が自動的に実行されます:
+
+1. `.env` ファイルの読み込み
+2. 必須設定値（`OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `GEMINI_API_KEY`）のチェック
+3. `SESSION_SECRET` が未設定なら自動生成
+4. 必要なGCP APIの有効化
+5. Artifact Registry リポジトリの作成（初回のみ）
+6. Cloud Build でコンテナイメージをビルド
+7. Cloud Run へデプロイ
+8. `BASE_URL` の自動設定
+
+> ビルド＋デプロイには5〜10分程度かかります。
+
+### 9.3 オプション指定
 
 ```powershell
-# コンテナイメージのビルド（Cloud Buildを使用、ローカルDockerは不要）
-gcloud builds submit `
-  --tag asia-northeast1-docker.pkg.dev/YOUR_PROJECT_ID/careplan-repo/careplan-app `
-  --timeout=600s
+# プロジェクトIDやリージョンを明示的に指定
+npm run deploy:cloudrun -- --project my-project-id --region asia-northeast1
+
+# ビルドだけ（デプロイはしない）
+npm run deploy:cloudrun -- --build-only
+
+# デプロイだけ（前回ビルド済みのイメージを使用）
+npm run deploy:cloudrun -- --deploy-only
+
+# メモリやインスタンス数を変更
+npm run deploy:cloudrun -- --memory 1Gi --max-instances 10
+
+# ヘルプの表示
+npm run deploy:cloudrun -- --help
 ```
-
-> ビルドには3〜5分程度かかります。
-
-```powershell
-# Cloud Run にデプロイ
-gcloud run deploy careplan-app `
-  --image asia-northeast1-docker.pkg.dev/YOUR_PROJECT_ID/careplan-repo/careplan-app `
-  --region asia-northeast1 `
-  --platform managed `
-  --allow-unauthenticated `
-  --port 8080 `
-  --memory 512Mi `
-  --cpu 1 `
-  --min-instances 0 `
-  --max-instances 5 `
-  --timeout 300 `
-  --set-env-vars "OAUTH_CLIENT_ID=YOUR_CLIENT_ID,OAUTH_CLIENT_SECRET=YOUR_CLIENT_SECRET,SESSION_SECRET=YOUR_SESSION_SECRET,GEMINI_API_KEY=YOUR_GEMINI_KEY,SETTINGS_SPREADSHEET_ID=YOUR_SHEET_ID,USER_ROOT_FOLDER_ID=YOUR_FOLDER_ID,NODE_ENV=production"
-```
-
-> **重要**: `YOUR_CLIENT_ID` などのプレースホルダを実際の値に置き換えてください。値にカンマが含まれる場合はダブルクォートで囲みます。
 
 ### 9.4 デプロイ結果の確認
 
+デプロイ完了後、コンソールにサービスURLが表示されます:
+
+```
+═══════════════════════════════════════════════════
+  デプロイ完了!
+═══════════════════════════════════════════════════
+
+  アプリURL: https://careplan-app-xxxxxxxxxx-an.a.run.app
+```
+
+手動で確認する場合:
+
 ```powershell
-# サービスURLを確認
 gcloud run services describe careplan-app `
   --region=asia-northeast1 `
   --format="value(status.url)"
 ```
-
-表示されたURL（例: `https://careplan-app-xxxxxxxxxx-an.a.run.app`）がアプリケーションのURLです。
 
 ---
 
@@ -485,14 +496,8 @@ Invoke-RestMethod -Uri "https://careplan-app-xxxxxxxxxx-an.a.run.app/healthz"
 # 最新コードを取得
 git pull
 
-# 再ビルド＆デプロイ
-gcloud builds submit `
-  --tag asia-northeast1-docker.pkg.dev/YOUR_PROJECT_ID/careplan-repo/careplan-app `
-  --timeout=600s
-
-gcloud run deploy careplan-app `
-  --image asia-northeast1-docker.pkg.dev/YOUR_PROJECT_ID/careplan-repo/careplan-app `
-  --region asia-northeast1
+# 再デプロイ（初回と同じコマンド）
+npm run deploy:cloudrun
 ```
 
 Cloud Run はブルー/グリーンデプロイメントを行うため、ダウンタイムなしで更新されます。

@@ -64,8 +64,11 @@ npm start
 ### Cloud Run デプロイ
 
 ```bash
-# 環境変数を設定後
-./deploy.sh [PROJECT_ID] [REGION]
+# .env に必要な値を設定後、コマンド1つでデプロイ
+npm run deploy:cloudrun
+
+# オプション指定も可能
+npm run deploy:cloudrun -- --project my-project --region asia-northeast1
 ```
 
 詳細は [デプロイガイド](docs/deploy-guide.md) を参照してください。

@@ -11,7 +11,8 @@
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy:cloudrun": "node scripts/deploy-cloudrun.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.0.0",
