@@ -17,6 +17,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
 
+// Cloud Run ではロードバランサーが SSL を終端するため、
+// Express にプロキシ経由であることを伝える（secure cookie が正しく動作するために必須）
+app.set('trust proxy', 1);
+
 // ── Middleware ──
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' ? undefined : 'http://localhost:5173',
