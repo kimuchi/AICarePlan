@@ -286,10 +286,14 @@ async function main() {
     { capture: true }
   );
 
-  if (serviceUrl) {
-    info('BASE_URL を設定中...');
-    run(`gcloud run services update ${opts.serviceName} --region=${opts.region} --project=${opts.project} --update-env-vars "BASE_URL=${serviceUrl}"`);
-    success('BASE_URL 設定完了');
+  // CUSTOM_DOMAIN が設定されていればそちらを BASE_URL にする
+  const customDomain = process.env.CUSTOM_DOMAIN;
+  const baseUrl = customDomain ? `https://${customDomain}` : serviceUrl;
+
+  if (baseUrl) {
+    info(`BASE_URL を設定中... (${baseUrl})`);
+    run(`gcloud run services update ${opts.serviceName} --region=${opts.region} --project=${opts.project} --update-env-vars "BASE_URL=${baseUrl}"`);
+    success(`BASE_URL = ${baseUrl}`);
   }
 
   // ── 完了 ──
@@ -298,17 +302,19 @@ async function main() {
   log(c.green(c.bold('  デプロイ完了!')));
   log(c.bold('═══════════════════════════════════════════════════'));
   log('');
-  if (serviceUrl) {
-    log(`  ${c.bold('アプリURL')}: ${c.cyan(serviceUrl)}`);
+  log(`  ${c.bold('Cloud Run URL')}: ${c.cyan(serviceUrl)}`);
+  if (customDomain) {
+    log(`  ${c.bold('カスタムドメイン')}: ${c.cyan(`https://${customDomain}`)}`);
   }
+  log(`  ${c.bold('BASE_URL')}: ${c.cyan(baseUrl)}`);
   log('');
   log(c.yellow('  次のステップ:'));
   log('');
   log('  1. Google Cloud Console で OAuth クライアントに以下のリダイレクトURIを追加:');
-  log(`     ${c.bold(`${serviceUrl}/auth/google/callback`)}`);
+  log(`     ${c.bold(`${baseUrl}/auth/google/callback`)}`);
   log('');
   log('  2. ブラウザでアクセスしてログイン:');
-  log(`     ${c.bold(serviceUrl)}`);
+  log(`     ${c.bold(baseUrl)}`);
   log('');
 }
 
