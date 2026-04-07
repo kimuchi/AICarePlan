@@ -169,6 +169,38 @@ gcloud services enable `
 - Google Drive API
 - Google Sheets API
 
+### 3.4 Cloud Build サービスアカウントの権限設定
+
+Cloud Build がコンテナイメージのビルド・保存・デプロイを行うために、サービスアカウントに必要な権限を付与します。**この手順を省略するとデプロイ時に権限エラーになります。**
+
+まず、プロジェクト番号を確認:
+
+```powershell
+gcloud projects describe YOUR_PROJECT_ID --format="value(projectNumber)"
+```
+
+表示されたプロジェクト番号（例: `850762165912`）を使って、以下の3つの権限を付与:
+
+```powershell
+# Cloud Storage への読み書き（ビルド用ソースのアップロードに必要）
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID `
+  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" `
+  --role="roles/storage.admin"
+
+# Artifact Registry への書き込み（ビルドしたイメージの保存に必要）
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID `
+  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" `
+  --role="roles/artifactregistry.writer"
+
+# Cloud Logging への書き込み（ビルドログの出力に必要）
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID `
+  --member="serviceAccount:PROJECT_NUMBER-compute@developer.gserviceaccount.com" `
+  --role="roles/logging.logWriter"
+```
+
+> `YOUR_PROJECT_ID` と `PROJECT_NUMBER` はご自身の値に置き換えてください。
+> 例: `--member="serviceAccount:850762165912-compute@developer.gserviceaccount.com"`
+
 ---
 
 ## 4. OAuth 2.0 クライアントの作成
@@ -534,7 +566,11 @@ Cloud Console → Cloud Run → `careplan-app` → 「ログ」タブ
 | `gcloud` コマンドが見つからない | Google Cloud SDK Shellを使うか、PATHに `C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\bin` を追加 |
 | Cloud Build がタイムアウト | `--timeout=900s` に延長して再試行 |
 | `permission denied` | `gcloud auth login` で再認証。プロジェクトのオーナーまたは編集者権限があるか確認 |
-| Artifact Registry エラー | リポジトリが作成されているか確認。APIが有効化されているか確認 |
+| `storage.objects.get` 権限エラー | Cloud Build サービスアカウントに `roles/storage.admin` を付与（[3.4節](#34-cloud-build-サービスアカウントの権限設定)参照） |
+| `artifactregistry.repositories.uploadArtifacts` 権限エラー | Cloud Build サービスアカウントに `roles/artifactregistry.writer` を付与（[3.4節](#34-cloud-build-サービスアカウントの権限設定)参照） |
+| `does not have permission to write logs` | Cloud Build サービスアカウントに `roles/logging.logWriter` を付与（[3.4節](#34-cloud-build-サービスアカウントの権限設定)参照） |
+| Artifact Registry リポジトリが見つからない | リポジトリが作成されているか確認。APIが有効化されているか確認 |
+| `npm install` で `TAR_ENTRY_ERROR` 大量発生 | 共有ドライブ（H:等）上で作業していないか確認。ローカルディスク（C:）にクローンし直す |
 | デプロイ後に502エラー | Cloud Runのログを確認。環境変数が正しく設定されているか確認 |
 
 ### アプリケーション関連
