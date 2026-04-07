@@ -135,13 +135,27 @@ export interface GeneratedPlan {
 
 export type BusinessMode = 'kyotaku' | 'shoki';
 
+export interface ExtractedUserProfile {
+  name: string;
+  furigana: string;
+  birthDate: string;
+  age: string;
+  address: string;
+  careLevel: string;
+  insuranceNo: string;
+  certDate: string;
+  certPeriodStart: string;
+  certPeriodEnd: string;
+  firstCreateDate: string;
+}
+
 export async function analyzeSources(
   user: any,
   sourceContents: Record<string, string>,
   mode: BusinessMode,
   facilityId?: string,
   managerNameOverride?: string
-): Promise<{ plans: GeneratedPlan[] }> {
+): Promise<{ plans: GeneratedPlan[]; userProfile: ExtractedUserProfile | null }> {
   return request('/api/analyze', {
     method: 'POST',
     body: JSON.stringify({ user, sourceContents, mode, facilityId, managerNameOverride }),

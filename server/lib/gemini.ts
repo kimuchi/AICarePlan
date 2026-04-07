@@ -254,3 +254,66 @@ export async function analyzePdf(
   });
   return response.text || '';
 }
+
+/** 利用者プロフィール抽出用スキーマ */
+const USER_PROFILE_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    name: { type: 'string' as const, description: '氏名（フルネーム）' },
+    furigana: { type: 'string' as const, description: 'ふりがな（カタカナ）' },
+    birthDate: { type: 'string' as const, description: '生年月日（例: 昭和19年5月28日）' },
+    age: { type: 'string' as const, description: '年齢' },
+    address: { type: 'string' as const, description: '住所' },
+    careLevel: { type: 'string' as const, description: '要介護状態区分（例: 要介護1）' },
+    insuranceNo: { type: 'string' as const, description: '被保険者番号' },
+    certDate: { type: 'string' as const, description: '認定日（例: 令和7年5月28日）' },
+    certPeriodStart: { type: 'string' as const, description: '認定有効期間の開始日（例: 令和7年5月9日）' },
+    certPeriodEnd: { type: 'string' as const, description: '認定有効期間の終了日（例: 令和8年5月31日）' },
+    firstCreateDate: { type: 'string' as const, description: '初回居宅サービス計画作成日' },
+  },
+  required: ['name'],
+};
+
+export interface ExtractedUserProfile {
+  name: string;
+  furigana: string;
+  birthDate: string;
+  age: string;
+  address: string;
+  careLevel: string;
+  insuranceNo: string;
+  certDate: string;
+  certPeriodStart: string;
+  certPeriodEnd: string;
+  firstCreateDate: string;
+}
+
+/**
+ * 情報源テキストから利用者の基本情報を構造化抽出する。
+ */
+export async function extractUserProfile(
+  model: string,
+  sourceTexts: string
+): Promise<ExtractedUserProfile> {
+  const ai = getGenAI();
+  const response = await ai.models.generateContent({
+    model,
+    contents: `以下の情報源から、利用者（介護サービスの利用者本人）の基本情報を抽出してください。
+見つからない項目は空文字にしてください。日付は和暦（令和○年○月○日、昭和○年○月○日など）で記載してください。
+
+【情報源】
+${sourceTexts}`,
+    config: {
+      responseMimeType: 'application/json',
+      responseSchema: USER_PROFILE_SCHEMA as any,
+      temperature: 0.1,
+      maxOutputTokens: 1024,
+    },
+  });
+  const text = response.text || '{}';
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { name: '', furigana: '', birthDate: '', age: '', address: '', careLevel: '', insuranceNo: '', certDate: '', certPeriodStart: '', certPeriodEnd: '', firstCreateDate: '' };
+  }
+}

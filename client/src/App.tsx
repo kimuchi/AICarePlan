@@ -11,7 +11,7 @@ import {
   fetchSourceContents, analyzeSources, exportToSheets, saveDraft,
   getFacilities,
   type SessionUser, type UserFolder, type SourceFile,
-  type GeneratedPlan, type BusinessMode, type Facility,
+  type GeneratedPlan, type BusinessMode, type Facility, type ExtractedUserProfile,
 } from './api';
 
 const STEPS = ['利用者選択', '情報源選択', 'プラン編集・確認', 'エクスポート'];
@@ -32,6 +32,7 @@ export default function App() {
   const [managerNameOverride, setManagerNameOverride] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [plans, setPlans] = useState<GeneratedPlan[]>([]);
+  const [userProfile, setUserProfile] = useState<ExtractedUserProfile | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
 
   // 事業所IDが変わったら事業所データを更新
@@ -74,6 +75,7 @@ export default function App() {
     setSelectedFacilityId('');
     setManagerNameOverride('');
     setPlans([]);
+    setUserProfile(null);
     setExportUrl(null);
   };
 
@@ -111,6 +113,7 @@ export default function App() {
 
       const result = await analyzeSources(userInfo, sourceContents, mode, selectedFacilityId, managerNameOverride || undefined);
       setPlans(result.plans);
+      if (result.userProfile) setUserProfile(result.userProfile);
       setStep(2);
     } catch (err: any) {
       toast(`分析エラー: ${err.message}`);
@@ -338,19 +341,22 @@ export default function App() {
             plans={plans}
             existingPlan={null}
             userMeta={{
-              name: selectedUser?.name || '',
-              birthDate: '',
-              address: '',
-              careLevel: '',
-              certDate: '',
-              certPeriod: { start: '', end: '' },
+              name: userProfile?.name || selectedUser?.name || '',
+              birthDate: userProfile?.birthDate || '',
+              address: userProfile?.address || '',
+              careLevel: userProfile?.careLevel || '',
+              certDate: userProfile?.certDate || '',
+              certPeriod: {
+                start: userProfile?.certPeriodStart || '',
+                end: userProfile?.certPeriodEnd || '',
+              },
             }}
             planMeta={{
               creator: managerNameOverride || selectedFacility?.managerName || '',
               facility: selectedFacility?.name || '',
               facilityAddress: selectedFacility?.address || '',
               createDate: formatWareki(),
-              firstCreateDate: '',
+              firstCreateDate: userProfile?.firstCreateDate || '',
             }}
             mode={mode}
             onSaveDraft={handleSaveDraft}

@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import { getAccessToken } from '../auth.js';
 import { getSheetData, setSheetData } from '../lib/sheets.js';
 import { getJsonFileContent, getFileContentBase64, getDocContent } from '../lib/drive.js';
-import { generateTable1, generateTable2, generateTable3, analyzePdf, summarizeDocument } from '../lib/gemini.js';
+import { generateTable1, generateTable2, generateTable3, analyzePdf, summarizeDocument, extractUserProfile } from '../lib/gemini.js';
+import type { ExtractedUserProfile } from '../lib/gemini.js';
 import { buildVariables, expandPrompt, getPromptIds, truncateContent } from '../lib/promptBuilder.js';
 import type { BusinessMode, GeneratedPlan, UserInfo } from '../types/plan.js';
 
@@ -173,11 +174,23 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
     const expandedT2 = expandPrompt(table2Prompt, variables);
     const expandedT3 = expandPrompt(table3Prompt, variables);
 
-    // ── Gemini呼び出し（3テーブル並列） ──
-    const [table1Results, table2Results, table3Results] = await Promise.all([
+    // ── Gemini呼び出し（3テーブル + プロフィール抽出を並列） ──
+    // プロフィール抽出用のソーステキスト（フェイスシート・既存ケアプラン・アセスメント等を結合）
+    const profileSourceText = [
+      truncatedContents.facesheet,
+      truncatedContents.careplan,
+      truncatedContents.assessment,
+      truncatedContents.assessment_survey,
+      truncatedContents.medical,
+    ].filter(Boolean).join('\n\n').slice(0, 20000);
+
+    const [table1Results, table2Results, table3Results, extractedProfile] = await Promise.all([
       table1Prompt ? generateTable1(geminiModel, expandedT1) : Promise.resolve([]),
       table2Prompt ? generateTable2(geminiModel, expandedT2) : Promise.resolve([]),
       table3Prompt ? generateTable3(geminiModel, expandedT3) : Promise.resolve([]),
+      profileSourceText
+        ? extractUserProfile(analyzeModel, profileSourceText)
+        : Promise.resolve(null),
     ]);
 
     // ── 結果マージ ──
@@ -201,7 +214,7 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    res.json({ plans });
+    res.json({ plans, userProfile: extractedProfile || null });
   } catch (err: any) {
     console.error('Error in analysis:', err.message?.replace(/[\u3000-\u9FFF]/g, '***'));
     res.status(500).json({ error: 'AI分析中にエラーが発生しました。しばらくしてから再度お試しください。' });
