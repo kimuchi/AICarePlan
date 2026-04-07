@@ -36,10 +36,18 @@ export default function App() {
     setTimeout(() => setShowToast(null), 3000);
   }, []);
 
-  // Check auth on load
+  // Check auth on load, initialize settings if admin
   useEffect(() => {
     getMe()
-      .then(r => { if (r) setUser(r.user); })
+      .then(r => {
+        if (r) {
+          setUser(r.user);
+          // 管理者の場合、設定スプレッドシートを自動初期化（新シート追加・ヘッダー更新）
+          if (r.user.role === 'admin') {
+            import('./api').then(api => api.initSettings()).catch(() => {});
+          }
+        }
+      })
       .finally(() => setAuthLoading(false));
   }, []);
 

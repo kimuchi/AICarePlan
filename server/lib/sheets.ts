@@ -356,7 +356,10 @@ export async function initializeSettingsSpreadsheet(
     });
   }
 
-  // Initialize general settings (シンプルに提案数のみ。AIモデル等は.env管理)
+  // ── ヘッダー行の初期化/更新（既存シートも含めて常に最新ヘッダーを書き込む） ──
+  // これにより、スキーマ変更時にも手動修正なしで対応できる
+
+  // general
   if (sheetsToCreate.includes('general')) {
     await sheets.spreadsheets.values.update({
       spreadsheetId,
@@ -371,27 +374,23 @@ export async function initializeSettingsSpreadsheet(
     });
   }
 
-  // Initialize facilities (管理者が事業所を居宅/小多機それぞれ登録)
-  if (sheetsToCreate.includes('facilities')) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: 'facilities!A1:E1',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [['id', 'type', 'name', 'address', 'managerName']] },
-    });
-  }
+  // facilities — 既存シートでもヘッダーを上書き
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: 'facilities!A1:E1',
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [['id', 'type', 'name', 'address', 'managerName']] },
+  });
 
-  // Initialize knowledgeFiles (管理者がGoogleドライブから選択した知識ファイル)
-  if (sheetsToCreate.includes('knowledgeFiles')) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: 'knowledgeFiles!A1:E1',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [['id', 'driveFileId', 'name', 'mimeType', 'description']] },
-    });
-  }
+  // knowledgeFiles — 既存シートでもヘッダーを上書き
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: 'knowledgeFiles!A1:E1',
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [['id', 'driveFileId', 'name', 'mimeType', 'description']] },
+  });
 
-  // Initialize prompts with defaults
+  // prompts — 新規作成時のみデフォルト投入（既存は上書きしない）
   if (sheetsToCreate.includes('prompts')) {
     const promptRows = [
       ['id', 'title', 'body'],
@@ -415,15 +414,13 @@ export async function initializeSettingsSpreadsheet(
     });
   }
 
-  // Initialize userDefaults (利用者ごとのデフォルト事業所 + ユーザー別作成者名)
-  if (sheetsToCreate.includes('userDefaults')) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: 'userDefaults!A1:E1',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [['userEmail', 'clientFolderId', 'facilityId', 'managerNameOverride', 'updatedAt']] },
-    });
-  }
+  // userDefaults — 既存シートでもヘッダーを上書き
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: 'userDefaults!A1:E1',
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [['userEmail', 'clientFolderId', 'facilityId', 'managerNameOverride', 'updatedAt']] },
+  });
 
   // Initialize drafts header
   if (sheetsToCreate.includes('drafts')) {
