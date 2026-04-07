@@ -104,14 +104,29 @@ export default function Settings({ user, onBack, toast }: Props) {
             <input style={S.input} value={general.managerName || ''} onChange={e => setGeneral({ ...general, managerName: e.target.value })} />
             <label style={S.fieldLabel}>利用者フォルダルートID（共有ドライブ）</label>
             <input style={S.input} value={general.userRootFolderId || ''} onChange={e => setGeneral({ ...general, userRootFolderId: e.target.value })} />
-            <label style={S.fieldLabel}>利用者フォルダルートID（マイドライブ・機密用）</label>
-            <input style={S.input} value={general.userRootFolderIdPrivate || ''} onChange={e => setGeneral({ ...general, userRootFolderIdPrivate: e.target.value })} />
-            <label style={S.fieldLabel}>AIモデル</label>
-            <select style={S.input} value={general.geminiModel || ''} onChange={e => setGeneral({ ...general, geminiModel: e.target.value })}>
-              <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash</option>
-              <option value="gemini-2.5-pro-preview-05-06">Gemini 2.5 Pro</option>
+            <label style={S.fieldLabel}>マイドライブ機密フォルダ名</label>
+            <input style={S.input} value={general.privateFolderName || ''} onChange={e => setGeneral({ ...general, privateFolderName: e.target.value })} placeholder="例: 利用者フォルダ" />
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
+              Autofiler-CarePlanningがマイドライブ直下に作成するフォルダ名。ログインユーザーのマイドライブから自動検索します。
+            </p>
+            <label style={S.fieldLabel}>AIモデル（プラン生成用）</label>
+            <select style={S.input} value={general.geminiModelGenerate || ''} onChange={e => setGeneral({ ...general, geminiModelGenerate: e.target.value })}>
+              <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash（推奨）</option>
+              <option value="gemini-2.5-pro-preview-05-06">Gemini 2.5 Pro（高品質）</option>
               <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
             </select>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
+              ケアプラン3案の生成に使用。品質重視ならPro、コスト重視ならFlash。
+            </p>
+            <label style={S.fieldLabel}>AIモデル（PDF解析・要約用）</label>
+            <select style={S.input} value={general.geminiModelAnalyze || ''} onChange={e => setGeneral({ ...general, geminiModelAnalyze: e.target.value })}>
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash（推奨・低コスト）</option>
+              <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash</option>
+              <option value="gemini-2.5-pro-preview-05-06">Gemini 2.5 Pro</option>
+            </select>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
+              PDF読み取り・長文要約に使用。高速・低コストモデル推奨。
+            </p>
             <label style={S.fieldLabel}>提案数</label>
             <select style={S.input} value={general.proposalCount || '3'} onChange={e => setGeneral({ ...general, proposalCount: e.target.value })}>
               <option value="2">2案</option>

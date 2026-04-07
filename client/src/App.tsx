@@ -275,6 +275,7 @@ export default function App() {
         {step === 1 && selectedUser && (
           <SourceSelect
             folderId={selectedUser.folderId}
+            folderName={selectedUser.folderName}
             userName={selectedUser.name}
             selectedSources={selectedSources}
             onSelectSources={setSelectedSources}

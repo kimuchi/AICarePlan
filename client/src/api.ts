@@ -69,8 +69,9 @@ export interface SourceFile {
   folderId: string;
 }
 
-export async function getUserSources(folderId: string): Promise<{ sources: SourceFile[] }> {
-  return request(`/api/sources/users/${folderId}/sources`);
+export async function getUserSources(folderId: string, folderName?: string): Promise<{ sources: SourceFile[] }> {
+  const params = folderName ? `?folderName=${encodeURIComponent(folderName)}` : '';
+  return request(`/api/sources/users/${folderId}/sources${params}`);
 }
 
 export async function fetchSourceContents(

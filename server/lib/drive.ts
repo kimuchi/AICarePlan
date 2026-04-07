@@ -214,6 +214,30 @@ export async function findSubfolder(
   return res.data.files?.[0]?.id || null;
 }
 
+/**
+ * マイドライブの直下から、指定した名前のフォルダを検索する。
+ *
+ * Autofiler-CarePlanningの機密文書配置仕様:
+ *   マイドライブ直下 → 利用者フォルダルート（privateFolderName）→ {氏名}様/ → サブフォルダ
+ *
+ * Drive API では 'root' を parentId に使うことでマイドライブ直下を検索できる。
+ * ただし 'root' は実行ユーザー本人のマイドライブなので、
+ * 他人のマイドライブには絶対にアクセスされない。
+ */
+export async function findMyDriveFolder(
+  accessToken: string,
+  folderName: string
+): Promise<string | null> {
+  const drive = getDriveClient(accessToken);
+  const res = await drive.files.list({
+    q: `'root' in parents and mimeType = 'application/vnd.google-apps.folder' and name = '${folderName.replace(/'/g, "\\'")}' and trashed = false`,
+    fields: 'files(id, name)',
+    pageSize: 1,
+    // マイドライブ検索なので共有ドライブフラグは不要
+  });
+  return res.data.files?.[0]?.id || null;
+}
+
 /** Create a file in a Drive folder (used for export) */
 export async function createSpreadsheetInFolder(
   accessToken: string,

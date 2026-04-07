@@ -271,19 +271,27 @@ SESSION_SECRET=ここにランダムな文字列を入力してください
 # Gemini API
 GEMINI_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxx
 
+# Gemini モデル設定
+#   生成用: ケアプラン3案の生成に使用（高品質推奨）
+#   解析用: PDF読み取り・長文要約に使用（高速・低コスト推奨）
+GEMINI_MODEL_GENERATE=gemini-2.5-flash-preview-05-20
+GEMINI_MODEL_ANALYZE=gemini-2.0-flash
+
 # 設定スプレッドシートID
 SETTINGS_SPREADSHEET_ID=1BxiMVs0XRA5nxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # 利用者フォルダルートID（共有ドライブ）
 USER_ROOT_FOLDER_ID=1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-# マイドライブ機密フォルダルートID（オプション）
-USER_ROOT_FOLDER_ID_PRIVATE=
+# マイドライブ機密フォルダ名
+# Autofiler-CarePlanningがマイドライブ直下に作成するフォルダ名を指定。
+# ログインユーザー本人のマイドライブから自動検索します。
+PRIVATE_FOLDER_NAME=利用者フォルダ
 
 # サーバーポート
 PORT=3001
 
-# ローカル開発URL
+# 本番環境URL（OAuth コールバック用）
 BASE_URL=http://localhost:3001
 ```
 
@@ -301,37 +309,21 @@ PowerShellでランダムな文字列を生成:
 
 ---
 
-## 8. ローカルでの動作確認
+## 8. ビルドの確認
 
-### 8.1 開発サーバーの起動
+デプロイ前にビルドが通ることを確認します:
 
 ```powershell
-npm run dev
+# TypeScript型チェック
+npx tsc --noEmit
+
+# フロントエンドビルド
+npx vite build --config vite.config.ts
 ```
 
-以下の2つのサーバーが同時に起動します:
-- フロントエンド: `http://localhost:5173`
-- APIサーバー: `http://localhost:3001`
+エラーが出なければ準備完了です。次のステップでCloud Runに直接デプロイします。
 
-### 8.2 動作確認
-
-1. ブラウザで `http://localhost:5173` にアクセス
-2. 「Googleでログイン」をクリック
-3. Googleアカウントで認証
-4. ホーム画面が表示されれば成功
-
-### 8.3 よくある起動時の問題
-
-| 問題 | 対処法 |
-|------|--------|
-| `port 3001 already in use` | 別のプロセスがポートを使用中。タスクマネージャーで確認するか、`.env`の`PORT`を変更 |
-| `Cannot find module` | `npm install` を再実行 |
-| OAuth エラー | `.env` のクライアントID/シークレットを確認。リダイレクトURIに `http://localhost:3001/auth/google/callback` が登録されているか確認 |
-| Drive APIエラー | Google Cloud ConsoleでDrive APIが有効化されているか確認 |
-
-### 8.4 開発サーバーの停止
-
-`Ctrl + C` を押して停止します。
+> **ローカルで動作確認したい場合**: `npm run dev` で開発サーバーを起動し、`http://localhost:5173` にアクセスします。OAuth のリダイレクトURIに `http://localhost:3001/auth/google/callback` を追加する必要があります。
 
 ---
 

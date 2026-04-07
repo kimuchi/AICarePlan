@@ -345,7 +345,7 @@ export async function initializeSettingsSpreadsheet(
   if (sheetsToCreate.includes('general')) {
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'general!A1:B7',
+      range: 'general!A1:B9',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [
@@ -354,8 +354,9 @@ export async function initializeSettingsSpreadsheet(
           ['facilityAddress', ''],
           ['managerName', ''],
           ['userRootFolderId', process.env.USER_ROOT_FOLDER_ID || ''],
-          ['userRootFolderIdPrivate', process.env.USER_ROOT_FOLDER_ID_PRIVATE || ''],
-          ['geminiModel', 'gemini-2.5-flash-preview-05-20'],
+          ['privateFolderName', process.env.PRIVATE_FOLDER_NAME || '利用者フォルダ'],
+          ['geminiModelGenerate', process.env.GEMINI_MODEL_GENERATE || 'gemini-2.5-flash-preview-05-20'],
+          ['geminiModelAnalyze', process.env.GEMINI_MODEL_ANALYZE || 'gemini-2.0-flash'],
           ['proposalCount', '3'],
         ],
       },

@@ -31,7 +31,9 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
     const settingsId = process.env.SETTINGS_SPREADSHEET_ID;
     let facilityName = '';
     let managerName = '';
-    let geminiModel = 'gemini-2.5-flash-preview-05-20';
+    // 生成用モデル（ケアプラン生成向け。高品質推奨）
+    // 優先順位: 設定スプレッドシート > .env > デフォルト
+    let geminiModel = process.env.GEMINI_MODEL_GENERATE || 'gemini-2.5-flash-preview-05-20';
 
     if (settingsId) {
       try {
@@ -40,7 +42,7 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
           for (const row of generalRows) {
             if (row[0] === 'facilityName') facilityName = row[1] || '';
             if (row[0] === 'managerName') managerName = row[1] || '';
-            if (row[0] === 'geminiModel' && row[1]) geminiModel = row[1];
+            if (row[0] === 'geminiModelGenerate' && row[1]) geminiModel = row[1];
           }
         }
       } catch {

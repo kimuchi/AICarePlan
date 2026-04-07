@@ -4,6 +4,7 @@ import { getUserSources, type SourceFile, type BusinessMode } from '../../api';
 
 interface Props {
   folderId: string;
+  folderName: string;
   userName: string;
   selectedSources: SourceFile[];
   onSelectSources: (sources: SourceFile[]) => void;
@@ -14,7 +15,7 @@ interface Props {
 }
 
 export default function SourceSelect({
-  folderId, userName, selectedSources, onSelectSources,
+  folderId, folderName, userName, selectedSources, onSelectSources,
   mode, onModeChange, onAnalyze, analyzing,
 }: Props) {
   const [sources, setSources] = useState<SourceFile[]>([]);
@@ -23,7 +24,7 @@ export default function SourceSelect({
 
   useEffect(() => {
     setLoading(true);
-    getUserSources(folderId)
+    getUserSources(folderId, folderName)
       .then(r => {
         setSources(r.sources);
         // Auto-select latest of each category

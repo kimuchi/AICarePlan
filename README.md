@@ -126,9 +126,11 @@ careplan-app/
 | `OAUTH_CLIENT_SECRET` | Google OAuth クライアントシークレット | ○ |
 | `SESSION_SECRET` | セッション暗号化キー | ○ |
 | `GEMINI_API_KEY` | Gemini API キー | ○ |
+| `GEMINI_MODEL_GENERATE` | プラン生成用モデル（デフォルト: `gemini-2.5-flash-preview-05-20`） | - |
+| `GEMINI_MODEL_ANALYZE` | PDF解析・要約用モデル（デフォルト: `gemini-2.0-flash`） | - |
 | `SETTINGS_SPREADSHEET_ID` | 設定スプレッドシートID | △ |
 | `USER_ROOT_FOLDER_ID` | 共有ドライブ利用者フォルダルートID | △ |
-| `USER_ROOT_FOLDER_ID_PRIVATE` | マイドライブ利用者フォルダルートID | - |
+| `PRIVATE_FOLDER_NAME` | マイドライブ機密フォルダ名（デフォルト: `利用者フォルダ`） | - |
 | `PORT` | サーバーポート（デフォルト: 3001） | - |
 | `BASE_URL` | 本番URL（OAuthコールバック用） | △ |
 

@@ -3,10 +3,12 @@ import { getAccessToken } from '../auth.js';
 import {
   listFilesRecursive,
   findSubfolder,
+  findMyDriveFolder,
   getJsonFileContent,
   getFileContentBase64,
   getDocContent,
   getSpreadsheetStarTab,
+  listSubfolders,
 } from '../lib/drive.js';
 import { getSheetData } from '../lib/sheets.js';
 import { analyzePdf, summarizeDocument } from '../lib/gemini.js';
@@ -26,7 +28,41 @@ function categorizeByFolder(folderName: string): { category: SourceCategory; ico
   return { category: 'record', icon: '📄' };
 }
 
-/** GET /api/users/:folderId/sources — List information sources for a user */
+/**
+ * マイドライブ側から機密文書を検索する共通ヘルパー。
+ * Autofiler-CarePlanning仕様に準拠:
+ *   マイドライブ直下 → {privateFolderName}/ → {氏名}様/ → 01_... 02_... と同じ構成
+ */
+async function findPrivateUserFolder(
+  token: string,
+  userFolderName: string,
+): Promise<string | null> {
+  let privateFolderName = process.env.PRIVATE_FOLDER_NAME || '';
+
+  // 設定スプレッドシートから読み取り
+  const settingsId = process.env.SETTINGS_SPREADSHEET_ID;
+  if (settingsId) {
+    try {
+      const rows = await getSheetData(settingsId, 'general!A:B', token);
+      if (rows) {
+        for (const row of rows) {
+          if (row[0] === 'privateFolderName' && row[1]) privateFolderName = row[1];
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (!privateFolderName) return null;
+
+  // マイドライブ直下から機密フォルダルートを検索
+  const privateRootId = await findMyDriveFolder(token, privateFolderName);
+  if (!privateRootId) return null;
+
+  // その中から同名の利用者フォルダを検索
+  return findSubfolder(token, privateRootId, userFolderName);
+}
+
+/** GET /api/sources/users/:folderId/sources — List information sources for a user */
 sourcesRouter.get('/users/:folderId/sources', async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
@@ -34,10 +70,9 @@ sourcesRouter.get('/users/:folderId/sources', async (req: Request, res: Response
 
     const folderId = req.params.folderId as string;
 
-    // List all files recursively from user folder
+    // List all files recursively from shared user folder
     const files = await listFilesRecursive(token, folderId);
 
-    // Also check for facesheet spreadsheet at root level
     const sources: SourceFile[] = [];
 
     for (const f of files) {
@@ -54,50 +89,36 @@ sourcesRouter.get('/users/:folderId/sources', async (req: Request, res: Response
       });
     }
 
-    // Check private (confidential) folder
-    let privateRootId = process.env.USER_ROOT_FOLDER_ID_PRIVATE || '';
-    const settingsId = process.env.SETTINGS_SPREADSHEET_ID;
-    if (settingsId) {
+    // マイドライブ側の機密文書を検索
+    // 共有フォルダ名（{氏名}様）を取得するため、共有フォルダのメタ情報が必要
+    // folderId からフォルダ名を取得する代わりに、query param で受け取る
+    const userFolderName = (req.query.folderName as string) || '';
+    if (userFolderName) {
       try {
-        const rows = await getSheetData(settingsId, 'general!A:B', token);
-        if (rows) {
-          for (const row of rows) {
-            if (row[0] === 'userRootFolderIdPrivate' && row[1]) privateRootId = row[1];
+        const privateFolderId = await findPrivateUserFolder(token, userFolderName);
+        if (privateFolderId) {
+          const privateFiles = await listFilesRecursive(token, privateFolderId);
+          for (const pf of privateFiles) {
+            const { category } = categorizeByFolder(pf.parentName);
+            sources.push({
+              id: pf.id,
+              name: pf.name,
+              category,
+              date: pf.modifiedTime.split('T')[0],
+              mimeType: pf.mimeType,
+              icon: '🔒',
+              isConfidential: true,
+              folderId: privateFolderId,
+            });
           }
         }
       } catch {
-        // Ignore
-      }
-    }
-
-    if (privateRootId) {
-      try {
-        // Find matching private folder by folder name
-        // We need the folder name, get it from the shared folder
-        const parentFolders = await listFilesRecursive(token, folderId);
-        // This is a simplified approach - just search private root
-        const privateFiles = await listFilesRecursive(token, privateRootId).catch(() => []);
-        for (const pf of privateFiles) {
-          const { category, icon } = categorizeByFolder(pf.parentName);
-          sources.push({
-            id: pf.id,
-            name: pf.name,
-            category,
-            date: pf.modifiedTime.split('T')[0],
-            mimeType: pf.mimeType,
-            icon: '🔒',
-            isConfidential: true,
-            folderId: privateRootId,
-          });
-        }
-      } catch {
-        // Private folder access is optional
+        // マイドライブに機密フォルダが無い場合はスキップ（正常）
       }
     }
 
     // Sort: JSONs first, then by date descending
     sources.sort((a, b) => {
-      // JSON files first
       const aJson = a.name.endsWith('.json') ? 0 : 1;
       const bJson = b.name.endsWith('.json') ? 0 : 1;
       if (aJson !== bJson) return aJson - bJson;
@@ -128,7 +149,8 @@ sourcesRouter.post('/fetch', async (req: Request, res: Response) => {
 
     const contents: Record<string, { type: string; content: string }> = {};
 
-    const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20';
+    // 解析用モデル（PDF解析・要約向け。高速・低コスト推奨）
+    const analyzeModel = process.env.GEMINI_MODEL_ANALYZE || 'gemini-2.0-flash';
 
     await Promise.all(
       fileIds.map(async (fileId) => {
@@ -141,17 +163,17 @@ sourcesRouter.post('/fetch', async (req: Request, res: Response) => {
             contents[fileId] = { type: 'json', content: JSON.stringify(json, null, 2) };
 
           } else if (mime === 'application/pdf') {
-            // PDF — analyze with Gemini
+            // PDF — analyze with Gemini (解析用モデル)
             const base64 = await getFileContentBase64(token, fileId);
-            const analyzed = await analyzePdf(geminiModel, base64, mime, '文書');
+            const analyzed = await analyzePdf(analyzeModel, base64, mime, '文書');
             contents[fileId] = { type: 'analyzed', content: analyzed };
 
           } else if (mime === 'application/vnd.google-apps.document') {
             // Google Docs — export as text
             const text = await getDocContent(token, fileId);
-            // Summarize if too long
+            // Summarize if too long (解析用モデル)
             if (text.length > 20000) {
-              const summary = await summarizeDocument(geminiModel, text, '文書');
+              const summary = await summarizeDocument(analyzeModel, text, '文書');
               contents[fileId] = { type: 'summarized', content: summary };
             } else {
               contents[fileId] = { type: 'text', content: text };

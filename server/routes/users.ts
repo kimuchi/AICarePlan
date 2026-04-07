@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { listSubfolders, findSubfolder } from '../lib/drive.js';
+import { listSubfolders, findSubfolder, findMyDriveFolder } from '../lib/drive.js';
 import { getAccessToken } from '../auth.js';
 import { getSheetData } from '../lib/sheets.js';
 
@@ -15,7 +15,7 @@ usersRouter.get('/', async (req: Request, res: Response) => {
 
     // Get root folder ID from settings or env
     let rootFolderId = process.env.USER_ROOT_FOLDER_ID || '';
-    let privateRootId = process.env.USER_ROOT_FOLDER_ID_PRIVATE || '';
+    let privateFolderName = process.env.PRIVATE_FOLDER_NAME || '';
 
     // Try to read from settings spreadsheet
     const settingsId = process.env.SETTINGS_SPREADSHEET_ID;
@@ -25,7 +25,7 @@ usersRouter.get('/', async (req: Request, res: Response) => {
         if (rows) {
           for (const row of rows) {
             if (row[0] === 'userRootFolderId' && row[1]) rootFolderId = row[1];
-            if (row[0] === 'userRootFolderIdPrivate' && row[1]) privateRootId = row[1];
+            if (row[0] === 'privateFolderName' && row[1]) privateFolderName = row[1];
           }
         }
       } catch {
@@ -40,12 +40,25 @@ usersRouter.get('/', async (req: Request, res: Response) => {
     // List user folders (format: {氏名}様)
     const folders = await listSubfolders(token, rootFolderId);
 
+    // マイドライブ直下から機密フォルダルートを検索
+    // Autofiler-CarePlanning仕様: マイドライブ直下 → {privateFolderName}/ → {氏名}様/ → ...
+    // ユーザー本人のマイドライブ 'root' を使うため、他人のマイドライブは絶対に参照されない
+    let privateRootId: string | null = null;
+    if (privateFolderName) {
+      try {
+        privateRootId = await findMyDriveFolder(token, privateFolderName);
+      } catch {
+        // マイドライブにフォルダが無い場合は機密文書なし（正常）
+      }
+    }
+
     // Check for private (confidential) folders
     const users = await Promise.all(
       folders.map(async (f) => {
         let hasConfidential = false;
         if (privateRootId) {
           try {
+            // マイドライブ側に同名のサブフォルダがあるか確認
             const privateFolderId = await findSubfolder(token, privateRootId, f.name);
             hasConfidential = !!privateFolderId;
           } catch {
