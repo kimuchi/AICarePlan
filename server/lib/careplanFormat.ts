@@ -110,8 +110,8 @@ export function buildTable1Requests(
     ? '居宅サービス計画書（1） 兼小規模多機能型居宅介護計画書'
     : '居宅サービス計画書（1）';
 
-  // Column widths (A-F: 6 columns)
-  const colWidths = [180, 200, 120, 200, 100, 280];
+  // Column widths (A-F: 6 columns) — 住所列を広めに
+  const colWidths = [160, 180, 100, 180, 80, 380];
   colWidths.forEach((w, i) => requests.push(colWidth(sheetId, i, w)));
 
   // Row 0: Title header
@@ -133,7 +133,7 @@ export function buildTable1Requests(
       cellData('', {}),
       cellData('', {}),
       cellData('', {}),
-      cellData('初回 ・ 紹介 ・ 継続', { fontSize: 9, hAlign: 'CENTER' }),
+      cellData('初回 ・ 継続', { fontSize: 9, hAlign: 'CENTER' }),
       cellData('認定済 ・ 申請中', { fontSize: 9, hAlign: 'CENTER' }),
       cellData('', {}),
     ],
@@ -204,7 +204,12 @@ export function buildTable1Requests(
   rowData.push({
     values: [
       cellData('要介護状態区分', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9 }),
-      cellData(`要支援1 ・ 要支援2 ・ ${user.careLevel} ・ 要介護2 ・ 要介護3 ・ 要介護4 ・ 要介護5`, { fontSize: 9 }),
+      cellData(
+        ['要支援1', '要支援2', '要介護1', '要介護2', '要介護3', '要介護4', '要介護5']
+          .map(level => level === user.careLevel ? `【${level}】` : level)
+          .join(' ・ '),
+        { fontSize: 9 }
+      ),
     ],
   });
   requests.push(mergeReq(sheetId, 7, 8, 1, 6));

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { S } from './styles';
+import { formatWareki } from './utils';
 import Home from './views/Home';
 import Settings from './views/Settings';
 import UserSelect from './views/Create/UserSelect';
@@ -8,8 +9,9 @@ import PlanEdit from './views/Create/PlanEdit';
 import {
   getMe, logout as apiLogout,
   fetchSourceContents, analyzeSources, exportToSheets, saveDraft,
+  getFacilities,
   type SessionUser, type UserFolder, type SourceFile,
-  type GeneratedPlan, type BusinessMode,
+  type GeneratedPlan, type BusinessMode, type Facility,
 } from './api';
 
 const STEPS = ['利用者選択', '情報源選択', 'プラン編集・確認', 'エクスポート'];
@@ -26,10 +28,20 @@ export default function App() {
   const [selectedSources, setSelectedSources] = useState<SourceFile[]>([]);
   const [mode, setMode] = useState<BusinessMode>('shoki');
   const [selectedFacilityId, setSelectedFacilityId] = useState('');
+  const [selectedFacility, setSelectedFacility] = useState<Facility | null>(null);
   const [managerNameOverride, setManagerNameOverride] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [plans, setPlans] = useState<GeneratedPlan[]>([]);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
+
+  // 事業所IDが変わったら事業所データを更新
+  useEffect(() => {
+    if (!selectedFacilityId) { setSelectedFacility(null); return; }
+    getFacilities().then(r => {
+      const fac = r.facilities.find(f => f.id === selectedFacilityId);
+      setSelectedFacility(fac || null);
+    }).catch(() => {});
+  }, [selectedFacilityId]);
 
   const toast = useCallback((msg: string) => {
     setShowToast(msg);
@@ -107,19 +119,39 @@ export default function App() {
     }
   };
 
+  // 事業所情報からメタデータを構築
+  const buildMeta = async () => {
+    const { formatWareki } = await import('./utils');
+    const dateStr = formatWareki(new Date());
+    let creator = managerNameOverride || '';
+    let facility = '';
+    let facilityAddress = '';
+
+    if (selectedFacilityId) {
+      try {
+        const { facilities } = await getFacilities();
+        const fac = facilities.find(f => f.id === selectedFacilityId);
+        if (fac) {
+          facility = fac.name;
+          facilityAddress = fac.address;
+          if (!creator) creator = fac.managerName;
+        }
+      } catch { /* use defaults */ }
+    }
+
+    return {
+      creator,
+      facility,
+      facilityAddress,
+      createDate: dateStr,
+      firstCreateDate: dateStr,
+    };
+  };
+
   const handleExport = async (plan: GeneratedPlan) => {
     if (!selectedUser) return;
     try {
-      const today = new Date();
-      const dateStr = `令和${String(today.getFullYear() - 2018).padStart(2, '0')}年${String(today.getMonth() + 1).padStart(2, '0')}月${String(today.getDate()).padStart(2, '0')}日`;
-
-      const meta = {
-        creator: '',
-        facility: '',
-        facilityAddress: '',
-        createDate: dateStr,
-        firstCreateDate: dateStr,
-      };
+      const meta = await buildMeta();
 
       const userInfo = {
         id: selectedUser.id,
@@ -314,10 +346,10 @@ export default function App() {
               certPeriod: { start: '', end: '' },
             }}
             planMeta={{
-              creator: '',
-              facility: '',
-              facilityAddress: '',
-              createDate: new Date().toLocaleDateString('ja-JP-u-ca-japanese', { era: 'long', year: 'numeric', month: '2-digit', day: '2-digit' }),
+              creator: managerNameOverride || selectedFacility?.managerName || '',
+              facility: selectedFacility?.name || '',
+              facilityAddress: selectedFacility?.address || '',
+              createDate: formatWareki(),
               firstCreateDate: '',
             }}
             mode={mode}

@@ -66,8 +66,15 @@ usersRouter.get('/', async (req: Request, res: Response) => {
           }
         }
 
-        // Extract name from folder name (remove 様 suffix)
-        const name = f.name.replace(/様$/, '').trim();
+        // Extract name from folder name
+        // フォルダ名例: "た_玉沢ひろ子様", "玉澤 廣子様" → 整理用プレフィックス(あ_等)と様を除去
+        const rawName = f.name
+          .replace(/様$/, '')     // 末尾の「様」除去
+          .replace(/^[ぁ-ん]_/, '') // 先頭の「ひらがな_」プレフィックス除去
+          .replace(/^[ァ-ヶ]_/, '') // 先頭の「カタカナ_」プレフィックス除去
+          .replace(/^[a-zA-Z]_/, '') // 先頭の「英字_」プレフィックス除去
+          .trim();
+        const name = rawName || f.name;
 
         return {
           id: f.id,

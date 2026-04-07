@@ -38,19 +38,27 @@ export default function Table1View({ plan, userName, birthDate, address, careLev
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 4 }}>
-        <span style={S.statusPill}>初回 ・ 紹介 ・ <strong>(継続)</strong></span>
-        <span style={S.statusPill}><strong>(認定済)</strong> ・ 申請中</span>
+        <span style={S.statusPill}>初回 ・ <strong>継続</strong></span>
+        <span style={S.statusPill}><strong>認定済</strong> ・ 申請中</span>
       </div>
 
-      <table style={S.formTable}>
+      <table style={{ ...S.formTable, tableLayout: 'fixed' }}>
+        <colgroup>
+          <col style={{ width: '15%' }} />
+          <col style={{ width: '18%' }} />
+          <col style={{ width: '10%' }} />
+          <col style={{ width: '18%' }} />
+          <col style={{ width: '8%' }} />
+          <col style={{ width: '31%' }} />
+        </colgroup>
         <tbody>
           <tr>
             <td style={S.tdLabel}>利用者名</td>
-            <td style={{ ...S.tdValue, width: '25%' }}>{userName} 様</td>
+            <td style={S.tdValue}>{userName} 様</td>
             <td style={S.tdLabel}>生年月日</td>
             <td style={S.tdValue}>{birthDate}</td>
             <td style={S.tdLabel}>住所</td>
-            <td style={S.tdValue}>{address}</td>
+            <td style={{ ...S.tdValue, wordBreak: 'break-all' }}>{address}</td>
           </tr>
           <tr>
             <td style={S.tdLabel}>居宅サービス計画作成者氏名</td>
@@ -77,7 +85,19 @@ export default function Table1View({ plan, userName, birthDate, address, careLev
           <tr>
             <td style={S.tdLabel}>要介護状態区分</td>
             <td colSpan={5} style={S.tdValue}>
-              要支援1 ・ 要支援2 ・ <strong style={{ background: '#fef3c7', padding: '2px 8px', borderRadius: 4 }}>{careLevel}</strong> ・ 要介護2 ・ 要介護3 ・ 要介護4 ・ 要介護5
+              {['要支援1', '要支援2', '要介護1', '要介護2', '要介護3', '要介護4', '要介護5'].map((level, i) => (
+                <span key={level}>
+                  {i > 0 && ' ・ '}
+                  {careLevel === level ? (
+                    <strong style={{ background: '#fef3c7', padding: '2px 8px', borderRadius: 4, border: '1px solid #f59e0b' }}>{level}</strong>
+                  ) : (
+                    <span>{level}</span>
+                  )}
+                </span>
+              ))}
+              {careLevel && !['要支援1', '要支援2', '要介護1', '要介護2', '要介護3', '要介護4', '要介護5'].includes(careLevel) && (
+                <span> ・ <strong style={{ background: '#fef3c7', padding: '2px 8px', borderRadius: 4 }}>{careLevel}</strong></span>
+              )}
             </td>
           </tr>
           <tr>

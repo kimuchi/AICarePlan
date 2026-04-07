@@ -38,8 +38,17 @@ export default function Table3View({ plan, userName, meta }: Props) {
     }
   });
 
+  // セルの時間帯(hour〜hour+2)にサービスが重なっているか判定
   const getServiceForCell = (day: string, hour: number) => {
-    return plan.table3.schedule.find(s => s.day === day && s.startHour >= hour && s.startHour < hour + 2);
+    const cellStart = hour;
+    const cellEnd = hour + 2;
+    return plan.table3.schedule.find(s => {
+      if (s.day !== day) return false;
+      const sStart = s.startHour + s.startMin / 60;
+      const sEnd = s.endHour + s.endMin / 60;
+      // サービスの時間帯がセルの時間帯と重なっているか
+      return sStart < cellEnd && sEnd > cellStart;
+    });
   };
 
   return (
