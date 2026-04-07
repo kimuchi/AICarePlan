@@ -385,9 +385,9 @@ export async function initializeSettingsSpreadsheet(
   // knowledgeFiles — 既存シートでもヘッダーを上書き
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: 'knowledgeFiles!A1:E1',
+    range: 'knowledgeFiles!A1:F1',
     valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [['id', 'driveFileId', 'name', 'mimeType', 'description']] },
+    requestBody: { values: [['id', 'type', 'driveFileId', 'name', 'mimeType', 'description']] },
   });
 
   // prompts — 新規作成時のみデフォルト投入（既存は上書きしない）

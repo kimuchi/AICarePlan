@@ -89,14 +89,15 @@ settingsRouter.get('/knowledge-files', async (req: Request, res: Response) => {
     if (!token) return res.status(401).json({ error: 'No access token' });
     const sid = getSettingsId();
     if (!sid) return res.json({ files: [] });
-    const rows = await getSheetData(sid, 'knowledgeFiles!A:E', token);
+    const rows = await getSheetData(sid, 'knowledgeFiles!A:F', token);
     if (!rows || rows.length <= 1) return res.json({ files: [] });
     const files = rows.slice(1).filter(r => r[0]).map(row => ({
       id: row[0] || '',
-      driveFileId: row[1] || '',
-      name: row[2] || '',
-      mimeType: row[3] || '',
-      description: row[4] || '',
+      type: row[1] || 'common',
+      driveFileId: row[2] || '',
+      name: row[3] || '',
+      mimeType: row[4] || '',
+      description: row[5] || '',
     }));
     res.json({ files });
   } catch (err: any) {
@@ -111,11 +112,11 @@ settingsRouter.put('/knowledge-files', requireAdmin, async (req: Request, res: R
     const sid = getSettingsId();
     if (!sid) return res.status(400).json({ error: 'Not configured' });
     const { files } = req.body as {
-      files: Array<{ id?: string; driveFileId: string; name: string; mimeType: string; description: string }>;
+      files: Array<{ id?: string; type: string; driveFileId: string; name: string; mimeType: string; description: string }>;
     };
     const rows = [
-      ['id', 'driveFileId', 'name', 'mimeType', 'description'],
-      ...files.map(f => [f.id || uuid(), f.driveFileId, f.name, f.mimeType, f.description]),
+      ['id', 'type', 'driveFileId', 'name', 'mimeType', 'description'],
+      ...files.map(f => [f.id || uuid(), f.type || 'common', f.driveFileId, f.name, f.mimeType, f.description]),
     ];
     await setSheetData(token, sid, 'knowledgeFiles!A1', rows);
     res.json({ ok: true });

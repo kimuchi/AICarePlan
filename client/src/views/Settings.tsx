@@ -131,82 +131,92 @@ export default function Settings({ user, onBack, toast }: Props) {
               プロンプト内の <code>{'{知識ベース}'}</code> に展開されます。
             </p>
             <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
-              運営基準、様式・記載例、運営推進会議資料など、計画作成の根拠となる文書を登録してください。
+              「共通」はすべてのプラン作成時に参照されます。居宅/小多機専用のファイルは該当モードの時のみ参照されます。
             </p>
 
-            {knowledgeFiles.map((kf, idx) => (
-              <div key={kf.id || idx} style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '12px 16px', marginBottom: 8,
-                background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0',
-              }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>
-                  {kf.mimeType === 'application/pdf' ? '📕' :
-                   kf.mimeType?.includes('document') ? '📄' :
-                   kf.mimeType === 'application/json' ? '📋' : '📎'}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {kf.name || '（名称未設定）'}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                    {kf.mimeType} ・ ID: {kf.driveFileId?.slice(0, 20)}...
-                  </div>
-                  <input
-                    style={{ ...S.input, marginTop: 6, fontSize: 12, padding: '6px 10px' }}
-                    placeholder="説明（例: 小規模多機能型居宅介護の運営基準）"
-                    value={kf.description}
-                    readOnly={!isAdmin}
-                    onChange={e => {
-                      const u = [...knowledgeFiles];
-                      u[idx] = { ...u[idx], description: e.target.value };
-                      setKnowledgeFiles(u);
-                    }}
-                  />
-                </div>
-                {isAdmin && (
-                  <button
-                    style={{ ...S.secondaryBtn, padding: '6px 10px', fontSize: 11, color: '#dc2626', flexShrink: 0 }}
-                    onClick={() => setKnowledgeFiles(knowledgeFiles.filter((_, i) => i !== idx))}
-                  >
-                    削除
-                  </button>
-                )}
-              </div>
-            ))}
+            {(['common', 'kyotaku', 'shoki'] as const).map(kfType => {
+              const label = kfType === 'common' ? '共通' : kfType === 'kyotaku' ? '居宅介護支援' : '小規模多機能';
+              const color = kfType === 'common' ? '#475569' : kfType === 'kyotaku' ? '#2563eb' : '#059669';
+              const typeFiles = knowledgeFiles.filter(kf => (kf.type || 'common') === kfType);
 
-            {knowledgeFiles.length === 0 && (
-              <p style={{ color: '#94a3b8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>
-                知識ファイルが登録されていません
-              </p>
-            )}
+              return (
+                <div key={kfType} style={{ marginBottom: 20 }}>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, color, margin: '0 0 8px', paddingBottom: 4, borderBottom: `2px solid ${color}` }}>
+                    {label}
+                  </h4>
+                  {typeFiles.map(kf => {
+                    const idx = knowledgeFiles.indexOf(kf);
+                    return (
+                      <div key={kf.id || idx} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '10px 14px', marginBottom: 6,
+                        background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0',
+                      }}>
+                        <span style={{ fontSize: 20, flexShrink: 0 }}>
+                          {kf.mimeType === 'application/pdf' ? '📕' :
+                           kf.mimeType?.includes('document') ? '📄' :
+                           kf.mimeType?.includes('spreadsheet') ? '📊' : '📎'}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {kf.name || '（名称未設定）'}
+                          </div>
+                          <input
+                            style={{ ...S.input, marginTop: 4, fontSize: 11, padding: '4px 8px' }}
+                            placeholder="説明（例: 運営基準）"
+                            value={kf.description}
+                            readOnly={!isAdmin}
+                            onChange={e => {
+                              const u = [...knowledgeFiles];
+                              u[idx] = { ...u[idx], description: e.target.value };
+                              setKnowledgeFiles(u);
+                            }}
+                          />
+                        </div>
+                        {isAdmin && (
+                          <button
+                            style={{ ...S.secondaryBtn, padding: '4px 8px', fontSize: 11, color: '#dc2626', flexShrink: 0 }}
+                            onClick={() => setKnowledgeFiles(knowledgeFiles.filter((_, i) => i !== idx))}
+                          >
+                            削除
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {typeFiles.length === 0 && (
+                    <p style={{ color: '#cbd5e1', fontSize: 12, padding: '8px 0' }}>ファイルなし</p>
+                  )}
+                  {isAdmin && (
+                    <DrivePicker
+                      multiSelect
+                      buttonLabel={`+ ${label}の知識ファイルを追加`}
+                      style={{ marginTop: 4, fontSize: 12, padding: '6px 14px' }}
+                      onPick={(files: PickedFile[]) => {
+                        const newFiles = files
+                          .filter(f => !knowledgeFiles.some(kf => kf.driveFileId === f.id))
+                          .map(f => ({
+                            id: '',
+                            type: kfType,
+                            driveFileId: f.id,
+                            name: f.name,
+                            mimeType: f.mimeType,
+                            description: '',
+                          }));
+                        if (newFiles.length > 0) {
+                          setKnowledgeFiles([...knowledgeFiles, ...newFiles]);
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
 
             {isAdmin && (
-              <>
-                <div style={{ marginTop: 12 }}>
-                  <DrivePicker
-                    multiSelect
-                    buttonLabel="Googleドライブからファイルを選択"
-                    onPick={(files: PickedFile[]) => {
-                      const newFiles = files
-                        .filter(f => !knowledgeFiles.some(kf => kf.driveFileId === f.id))
-                        .map(f => ({
-                          id: '',
-                          driveFileId: f.id,
-                          name: f.name,
-                          mimeType: f.mimeType,
-                          description: '',
-                        }));
-                      if (newFiles.length > 0) {
-                        setKnowledgeFiles([...knowledgeFiles, ...newFiles]);
-                      }
-                    }}
-                  />
-                </div>
-                <div style={{ marginTop: 16 }}>
-                  <button style={S.saveBtn} onClick={saveKnowledgeFiles}>保存</button>
-                </div>
-              </>
+              <div style={{ marginTop: 8 }}>
+                <button style={S.saveBtn} onClick={saveKnowledgeFiles}>保存</button>
+              </div>
             )}
           </div>
         )}

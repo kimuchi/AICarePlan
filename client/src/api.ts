@@ -228,6 +228,7 @@ export interface Facility {
 
 export interface KnowledgeFile {
   id: string;
+  type: 'kyotaku' | 'shoki' | 'common';
   driveFileId: string;
   name: string;
   mimeType: string;

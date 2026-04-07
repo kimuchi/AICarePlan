@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { getPickerConfig } from '../api';
 
-/** Google Drive Picker でファイルを選択した結果 */
 export interface PickedFile {
   id: string;
   name: string;
@@ -15,7 +14,6 @@ interface Props {
   style?: React.CSSProperties;
 }
 
-// Google Picker API のスクリプトを一度だけ読み込む
 let pickerApiLoaded = false;
 let pickerApiLoading = false;
 const loadCallbacks: Array<() => void> = [];
@@ -26,7 +24,6 @@ function loadPickerApi(): Promise<void> {
     loadCallbacks.push(resolve);
     if (pickerApiLoading) return;
     pickerApiLoading = true;
-
     const script = document.createElement('script');
     script.src = 'https://apis.google.com/js/api.js';
     script.onload = () => {
@@ -40,10 +37,6 @@ function loadPickerApi(): Promise<void> {
   });
 }
 
-/**
- * Google Drive Picker を使ってファイルを選択するボタン。
- * クリックすると Google のファイル選択ダイアログが開く。
- */
 export default function DrivePicker({ onPick, buttonLabel, multiSelect, style }: Props) {
   const [loading, setLoading] = useState(false);
 
@@ -52,19 +45,23 @@ export default function DrivePicker({ onPick, buttonLabel, multiSelect, style }:
     try {
       await loadPickerApi();
       const config = await getPickerConfig();
-
       const google = (window as any).google;
-      const picker = new google.picker.PickerBuilder()
-        .addView(
-          new google.picker.DocsView()
-            .setIncludeFolders(false)
-            .setSelectFolderEnabled(false)
-        )
-        .addView(
-          new google.picker.DocsView(google.picker.ViewId.DOCS)
-        )
+
+      // フォルダをたどれるビュー（マイドライブ + 共有ドライブ両対応）
+      const docsView = new google.picker.DocsView()
+        .setIncludeFolders(true)        // フォルダを表示
+        .setSelectFolderEnabled(false)  // フォルダ自体は選択不可（中に入る用）
+        .setParent('root');             // マイドライブのルートから開始
+
+      const sharedView = new google.picker.DocsView()
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(false)
+        .setEnableDrives(true);         // 共有ドライブも表示
+
+      const builder = new google.picker.PickerBuilder()
+        .addView(docsView)
+        .addView(sharedView)
         .setOAuthToken(config.accessToken)
-        .setDeveloperKey('') // Picker API は OAuth トークンがあればAPI Keyは空でOK
         .setCallback((data: any) => {
           if (data.action === google.picker.Action.PICKED) {
             const files: PickedFile[] = data.docs.map((doc: any) => ({
@@ -76,13 +73,14 @@ export default function DrivePicker({ onPick, buttonLabel, multiSelect, style }:
           }
         })
         .setTitle('知識ファイルを選択')
-        .setLocale('ja');
+        .setLocale('ja')
+        .enableFeature(google.picker.Feature.SUPPORT_DRIVES); // 共有ドライブ対応
 
       if (multiSelect) {
-        picker.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
+        builder.enableFeature(google.picker.Feature.MULTISELECT_ENABLED);
       }
 
-      picker.build().setVisible(true);
+      builder.build().setVisible(true);
     } catch (err: any) {
       console.error('Picker error:', err);
       alert(`ファイル選択エラー: ${err.message}`);

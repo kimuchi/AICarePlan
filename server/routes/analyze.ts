@@ -62,19 +62,22 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
       managerName = managerNameOverride;
     }
 
-    // ── 知識ファイルを取得 ──
+    // ── 知識ファイルを取得（common + 選択中モードのファイルのみ） ──
     let knowledgeBase = '';
     if (settingsId) {
       try {
-        const kfRows = await getSheetData(settingsId, 'knowledgeFiles!A:E', token);
+        const kfRows = await getSheetData(settingsId, 'knowledgeFiles!A:F', token);
         if (kfRows && kfRows.length > 1) {
           const knowledgeParts: string[] = [];
           for (let i = 1; i < kfRows.length; i++) {
-            const driveFileId = kfRows[i][1];
-            const fileName = kfRows[i][2] || '';
-            const mimeType = kfRows[i][3] || '';
-            const description = kfRows[i][4] || '';
+            const fileType = kfRows[i][1] || 'common';
+            const driveFileId = kfRows[i][2];
+            const fileName = kfRows[i][3] || '';
+            const mimeType = kfRows[i][4] || '';
+            const description = kfRows[i][5] || '';
             if (!driveFileId) continue;
+            // common + 選択中のモードのみ参照
+            if (fileType !== 'common' && fileType !== mode) continue;
 
             try {
               let content = '';
