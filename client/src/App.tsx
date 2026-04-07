@@ -42,10 +42,8 @@ export default function App() {
       .then(r => {
         if (r) {
           setUser(r.user);
-          // 管理者の場合、設定スプレッドシートを自動初期化（新シート追加・ヘッダー更新）
-          if (r.user.role === 'admin') {
-            import('./api').then(api => api.initSettings()).catch(() => {});
-          }
+          // 設定スプレッドシートを自動初期化（新シート追加・ヘッダー更新）
+          import('./api').then(api => api.initSettings()).catch(() => {});
         }
       })
       .finally(() => setAuthLoading(false));

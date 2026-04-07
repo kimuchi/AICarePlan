@@ -9,18 +9,23 @@ function getSettingsId(): string | undefined {
   return process.env.SETTINGS_SPREADSHEET_ID;
 }
 
-/** POST /api/settings/init */
-settingsRouter.post('/init', requireAdmin, async (req: Request, res: Response) => {
+/** POST /api/settings/init — 設定スプレッドシートの初期化（ログインユーザーなら誰でも実行可能） */
+settingsRouter.post('/init', async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
     const sid = getSettingsId();
-    if (!sid) return res.status(400).json({ error: 'SETTINGS_SPREADSHEET_ID not configured' });
+    if (!sid) {
+      console.warn('Settings init skipped: SETTINGS_SPREADSHEET_ID not set');
+      return res.status(400).json({ error: 'SETTINGS_SPREADSHEET_ID not configured' });
+    }
+    console.log(`Initializing settings spreadsheet: ${sid}`);
     await initializeSettingsSpreadsheet(token, sid);
+    console.log('Settings spreadsheet initialized successfully');
     res.json({ ok: true });
   } catch (err: any) {
     console.error('Settings init error:', err.message);
-    res.status(500).json({ error: '設定の初期化に失敗しました' });
+    res.status(500).json({ error: `設定の初期化に失敗しました: ${err.message}` });
   }
 });
 
