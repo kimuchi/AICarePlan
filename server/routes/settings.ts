@@ -114,9 +114,10 @@ settingsRouter.put('/knowledge-files', requireAdmin, async (req: Request, res: R
     const { files } = req.body as {
       files: Array<{ id?: string; type: string; driveFileId: string; name: string; mimeType: string; description: string }>;
     };
+    // G列(cachedContent)を空にして保存 → キャッシュクリア
     const rows = [
-      ['id', 'type', 'driveFileId', 'name', 'mimeType', 'description'],
-      ...files.map(f => [f.id || uuid(), f.type || 'common', f.driveFileId, f.name, f.mimeType, f.description]),
+      ['id', 'type', 'driveFileId', 'name', 'mimeType', 'description', 'cachedContent'],
+      ...files.map(f => [f.id || uuid(), f.type || 'common', f.driveFileId, f.name, f.mimeType, f.description, '']),
     ];
     await setSheetData(token, sid, 'knowledgeFiles!A1', rows);
     res.json({ ok: true });

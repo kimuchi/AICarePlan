@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getAccessToken } from '../auth.js';
-import { getSheetData } from '../lib/sheets.js';
+import { getSheetData, setSheetData } from '../lib/sheets.js';
 import { getJsonFileContent, getFileContentBase64, getDocContent } from '../lib/drive.js';
 import { generateTable1, generateTable2, generateTable3, analyzePdf, summarizeDocument } from '../lib/gemini.js';
 import { buildVariables, expandPrompt, getPromptIds, truncateContent } from '../lib/promptBuilder.js';
@@ -62,48 +62,76 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
       managerName = managerNameOverride;
     }
 
-    // ── 知識ファイルを取得（common + 選択中モードのファイルのみ） ──
+    // ── 知識ファイルを取得（common + 選択中モードのファイルのみ、キャッシュ活用） ──
     let knowledgeBase = '';
     if (settingsId) {
       try {
-        const kfRows = await getSheetData(settingsId, 'knowledgeFiles!A:F', token);
+        const kfRows = await getSheetData(settingsId, 'knowledgeFiles!A:G', token);
         if (kfRows && kfRows.length > 1) {
           const knowledgeParts: string[] = [];
+          let cacheUpdated = false;
+
           for (let i = 1; i < kfRows.length; i++) {
             const fileType = kfRows[i][1] || 'common';
             const driveFileId = kfRows[i][2];
             const fileName = kfRows[i][3] || '';
             const mimeType = kfRows[i][4] || '';
             const description = kfRows[i][5] || '';
+            const cachedContent = kfRows[i][6] || '';
             if (!driveFileId) continue;
-            // common + 選択中のモードのみ参照
             if (fileType !== 'common' && fileType !== mode) continue;
 
             try {
               let content = '';
-              if (mimeType === 'application/pdf') {
-                const base64 = await getFileContentBase64(token, driveFileId);
-                content = await analyzePdf(analyzeModel, base64, mimeType, fileName);
-              } else if (mimeType === 'application/vnd.google-apps.document') {
-                content = await getDocContent(token, driveFileId);
-                if (content.length > 10000) {
-                  content = await summarizeDocument(analyzeModel, content, fileName);
-                }
-              } else if (mimeType === 'application/json') {
-                const json = await getJsonFileContent(token, driveFileId);
-                content = JSON.stringify(json, null, 2);
+
+              // キャッシュがあればそれを使用（PDF解析をスキップ）
+              if (cachedContent) {
+                content = cachedContent;
               } else {
-                // Try as text
-                content = await getDocContent(token, driveFileId).catch(() => '');
+                // キャッシュがない → 取得・解析してキャッシュに保存
+                console.log(`Knowledge file cache miss: ${fileName} — fetching...`);
+                if (mimeType === 'application/pdf') {
+                  const base64 = await getFileContentBase64(token, driveFileId);
+                  content = await analyzePdf(analyzeModel, base64, mimeType, fileName);
+                } else if (mimeType === 'application/vnd.google-apps.document') {
+                  content = await getDocContent(token, driveFileId);
+                  if (content.length > 10000) {
+                    content = await summarizeDocument(analyzeModel, content, fileName);
+                  }
+                } else if (mimeType === 'application/json') {
+                  const json = await getJsonFileContent(token, driveFileId);
+                  content = JSON.stringify(json, null, 2);
+                } else {
+                  content = await getDocContent(token, driveFileId).catch(() => '');
+                }
+
+                // キャッシュに書き込み
+                if (content) {
+                  kfRows[i][6] = content;
+                  cacheUpdated = true;
+                }
               }
+
               if (content) {
                 const label = description || fileName;
                 knowledgeParts.push(`【${label}】\n${truncateContent(content, 8000)}`);
               }
-            } catch {
+            } catch (err: any) {
+              console.error(`Knowledge file error (${fileName}):`, err.message);
               knowledgeParts.push(`【${fileName}】※読み取りエラー`);
             }
           }
+
+          // キャッシュが更新されたらスプレッドシートに書き戻し
+          if (cacheUpdated) {
+            try {
+              await setSheetData(token, settingsId, 'knowledgeFiles!A1', kfRows);
+              console.log('Knowledge file cache updated');
+            } catch {
+              console.warn('Failed to write knowledge file cache');
+            }
+          }
+
           knowledgeBase = knowledgeParts.join('\n\n');
         }
       } catch { /* knowledge files are optional */ }

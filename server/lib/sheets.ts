@@ -382,12 +382,12 @@ export async function initializeSettingsSpreadsheet(
     requestBody: { values: [['id', 'type', 'name', 'address', 'managerName']] },
   });
 
-  // knowledgeFiles — 既存シートでもヘッダーを上書き
+  // knowledgeFiles — 既存シートでもヘッダーを上書き（G列にキャッシュ）
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: 'knowledgeFiles!A1:F1',
+    range: 'knowledgeFiles!A1:G1',
     valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [['id', 'type', 'driveFileId', 'name', 'mimeType', 'description']] },
+    requestBody: { values: [['id', 'type', 'driveFileId', 'name', 'mimeType', 'description', 'cachedContent']] },
   });
 
   // prompts — 新規作成時のみデフォルト投入（既存は上書きしない）
