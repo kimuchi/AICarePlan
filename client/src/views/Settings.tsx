@@ -245,29 +245,7 @@ export default function Settings({ user, onBack, toast }: Props) {
 
         {/* ── 許可リスト ── */}
         {tab === 'allowlist' && isAdmin && (
-          <div style={S.settingsPanel}>
-            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
-              ログインを許可するメールアドレスを管理します。<code>admin</code> は設定の編集が可能です。
-            </p>
-            {allowlist.map((entry, idx) => (
-              <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                <input style={{ ...S.input, flex: 2 }} placeholder="メールアドレス" value={entry.email}
-                  onChange={e => { const u = [...allowlist]; u[idx] = { ...u[idx], email: e.target.value }; setAllowlist(u); }} />
-                <select style={{ ...S.input, flex: 0, width: 100 }} value={entry.role}
-                  onChange={e => { const u = [...allowlist]; u[idx] = { ...u[idx], role: e.target.value }; setAllowlist(u); }}>
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                </select>
-                <input style={{ ...S.input, flex: 1 }} placeholder="名前" value={entry.name}
-                  onChange={e => { const u = [...allowlist]; u[idx] = { ...u[idx], name: e.target.value }; setAllowlist(u); }} />
-                <button style={{ ...S.secondaryBtn, padding: '8px 12px', fontSize: 12, color: '#dc2626' }}
-                  onClick={() => setAllowlist(allowlist.filter((_, i) => i !== idx))}>削除</button>
-              </div>
-            ))}
-            <button style={{ ...S.secondaryBtn, marginTop: 8 }}
-              onClick={() => setAllowlist([...allowlist, { email: '', role: 'user', name: '' }])}>+ 追加</button>
-            <div style={{ marginTop: 16 }}><button style={S.saveBtn} onClick={saveAllowlist}>保存</button></div>
-          </div>
+          <AllowlistPanel allowlist={allowlist} setAllowlist={setAllowlist} saveAllowlist={saveAllowlist} />
         )}
       </main>
     </div>
@@ -311,4 +289,107 @@ export default function Settings({ user, onBack, toast }: Props) {
       </>
     );
   }
+}
+
+// ── 許可リストパネル（一括追加機能付き） ──
+
+function AllowlistPanel({
+  allowlist, setAllowlist, saveAllowlist,
+}: {
+  allowlist: Array<{ email: string; role: string; name: string }>;
+  setAllowlist: (list: Array<{ email: string; role: string; name: string }>) => void;
+  saveAllowlist: () => void;
+}) {
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkRole, setBulkRole] = useState<string>('user');
+
+  const handleBulkAdd = () => {
+    const lines = bulkText.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+    const existing = new Set(allowlist.map(a => a.email.toLowerCase()));
+    const newEntries = lines
+      .filter(line => line.includes('@') && !existing.has(line.toLowerCase()))
+      .map(email => ({ email, role: bulkRole, name: '' }));
+
+    if (newEntries.length === 0) {
+      alert('追加できるメールアドレスがありません（重複または形式不正）');
+      return;
+    }
+    setAllowlist([...allowlist, ...newEntries]);
+    setBulkText('');
+    setBulkMode(false);
+  };
+
+  return (
+    <div style={S.settingsPanel}>
+      <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+        ログインを許可するメールアドレスを管理します。<code>admin</code> は設定の編集が可能です。
+      </p>
+
+      {/* 個別リスト */}
+      {allowlist.map((entry, idx) => (
+        <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+          <input style={{ ...S.input, flex: 2 }} placeholder="メールアドレス" value={entry.email}
+            onChange={e => { const u = [...allowlist]; u[idx] = { ...u[idx], email: e.target.value }; setAllowlist(u); }} />
+          <select style={{ ...S.input, flex: 0, width: 100 }} value={entry.role}
+            onChange={e => { const u = [...allowlist]; u[idx] = { ...u[idx], role: e.target.value }; setAllowlist(u); }}>
+            <option value="user">user</option>
+            <option value="admin">admin</option>
+          </select>
+          <input style={{ ...S.input, flex: 1 }} placeholder="名前" value={entry.name}
+            onChange={e => { const u = [...allowlist]; u[idx] = { ...u[idx], name: e.target.value }; setAllowlist(u); }} />
+          <button style={{ ...S.secondaryBtn, padding: '8px 12px', fontSize: 12, color: '#dc2626' }}
+            onClick={() => setAllowlist(allowlist.filter((_, i) => i !== idx))}>削除</button>
+        </div>
+      ))}
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <button style={S.secondaryBtn}
+          onClick={() => setAllowlist([...allowlist, { email: '', role: 'user', name: '' }])}>
+          + 1件追加
+        </button>
+        <button style={S.secondaryBtn} onClick={() => setBulkMode(!bulkMode)}>
+          {bulkMode ? '閉じる' : '一括追加'}
+        </button>
+      </div>
+
+      {/* 一括追加 */}
+      {bulkMode && (
+        <div style={{
+          marginTop: 12, padding: '16px', background: '#f0f7ff',
+          borderRadius: 10, border: '1px solid #bfdbfe',
+        }}>
+          <label style={{ ...S.fieldLabel, marginTop: 0 }}>
+            メールアドレスを入力（改行・カンマ・セミコロンで区切り）
+          </label>
+          <textarea
+            style={{ ...S.textarea, minHeight: 100 }}
+            placeholder={'taro@example.com\nhanako@example.com\njiro@example.com'}
+            value={bulkText}
+            onChange={e => setBulkText(e.target.value)}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569' }}>ロール:</label>
+            <select style={{ ...S.input, width: 120 }} value={bulkRole} onChange={e => setBulkRole(e.target.value)}>
+              <option value="user">user</option>
+              <option value="admin">admin</option>
+            </select>
+            <button
+              style={{ ...S.primaryBtn, padding: '8px 20px', fontSize: 13 }}
+              onClick={handleBulkAdd}
+            >
+              追加（{bulkText.split(/[\n,;]+/).map(s => s.trim()).filter(s => s.includes('@')).length}件）
+            </button>
+          </div>
+          <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+            既に登録済みのメールアドレスは自動的にスキップされます。
+          </p>
+        </div>
+      )}
+
+      <div style={{ marginTop: 16 }}>
+        <button style={S.saveBtn} onClick={saveAllowlist}>保存</button>
+      </div>
+    </div>
+  );
 }
