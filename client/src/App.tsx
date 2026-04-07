@@ -26,6 +26,7 @@ export default function App() {
   const [selectedSources, setSelectedSources] = useState<SourceFile[]>([]);
   const [mode, setMode] = useState<BusinessMode>('shoki');
   const [selectedFacilityId, setSelectedFacilityId] = useState('');
+  const [managerNameOverride, setManagerNameOverride] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [plans, setPlans] = useState<GeneratedPlan[]>([]);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
@@ -53,6 +54,7 @@ export default function App() {
     setSelectedUser(null);
     setSelectedSources([]);
     setSelectedFacilityId('');
+    setManagerNameOverride('');
     setPlans([]);
     setExportUrl(null);
   };
@@ -89,7 +91,7 @@ export default function App() {
         address: '',
       };
 
-      const result = await analyzeSources(userInfo, sourceContents, mode, selectedFacilityId);
+      const result = await analyzeSources(userInfo, sourceContents, mode, selectedFacilityId, managerNameOverride || undefined);
       setPlans(result.plans);
       setStep(2);
     } catch (err: any) {
@@ -285,6 +287,8 @@ export default function App() {
             onModeChange={setMode}
             selectedFacilityId={selectedFacilityId}
             onFacilityChange={setSelectedFacilityId}
+            managerNameOverride={managerNameOverride}
+            onManagerNameOverrideChange={setManagerNameOverride}
             onAnalyze={handleAnalyze}
             analyzing={analyzing}
           />

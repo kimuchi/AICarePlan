@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getAccessToken, requireAdmin } from '../auth.js';
-import { getSheetData, setSheetData, appendSheetData, initializeSettingsSpreadsheet } from '../lib/sheets.js';
+import { getSheetData, setSheetData, initializeSettingsSpreadsheet } from '../lib/sheets.js';
 import { v4 as uuid } from 'uuid';
 
 export const settingsRouter = Router();
@@ -9,14 +9,14 @@ function getSettingsId(): string | undefined {
   return process.env.SETTINGS_SPREADSHEET_ID;
 }
 
-/** POST /api/settings/init — Initialize settings spreadsheet */
+/** POST /api/settings/init */
 settingsRouter.post('/init', requireAdmin, async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.status(400).json({ error: 'SETTINGS_SPREADSHEET_ID not configured' });
-    await initializeSettingsSpreadsheet(token, settingsId);
+    const sid = getSettingsId();
+    if (!sid) return res.status(400).json({ error: 'SETTINGS_SPREADSHEET_ID not configured' });
+    await initializeSettingsSpreadsheet(token, sid);
     res.json({ ok: true });
   } catch (err: any) {
     console.error('Settings init error:', err.message);
@@ -24,9 +24,8 @@ settingsRouter.post('/init', requireAdmin, async (req: Request, res: Response) =
   }
 });
 
-// ── AIモデル（.envから読み取り、読み取り専用） ──
+// ── AIモデル（.envから読み取り専用） ──
 
-/** GET /api/settings/models — 現在のAIモデル設定を返す */
 settingsRouter.get('/models', async (_req: Request, res: Response) => {
   res.json({
     generate: process.env.GEMINI_MODEL_GENERATE || 'gemini-2.5-flash-preview-05-20',
@@ -34,274 +33,263 @@ settingsRouter.get('/models', async (_req: Request, res: Response) => {
   });
 });
 
-// ── 事業所管理（管理者: CRUD、一般ユーザー: 読み取り） ──
+// ── 事業所管理（type: kyotaku / shoki） ──
 
-/** GET /api/settings/facilities — 事業所一覧 */
 settingsRouter.get('/facilities', async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.json({ facilities: [] });
-
-    const rows = await getSheetData(settingsId, 'facilities!A:D', token);
+    const sid = getSettingsId();
+    if (!sid) return res.json({ facilities: [] });
+    const rows = await getSheetData(sid, 'facilities!A:E', token);
     if (!rows || rows.length <= 1) return res.json({ facilities: [] });
-
     const facilities = rows.slice(1).filter(r => r[0]).map(row => ({
       id: row[0] || '',
-      name: row[1] || '',
-      address: row[2] || '',
-      managerName: row[3] || '',
+      type: row[1] || 'kyotaku',
+      name: row[2] || '',
+      address: row[3] || '',
+      managerName: row[4] || '',
     }));
     res.json({ facilities });
   } catch (err: any) {
-    console.error('Get facilities error:', err.message);
     res.status(500).json({ error: '事業所一覧の取得に失敗しました' });
   }
 });
 
-/** PUT /api/settings/facilities — 事業所一覧を上書き保存（管理者のみ） */
 settingsRouter.put('/facilities', requireAdmin, async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.status(400).json({ error: 'SETTINGS_SPREADSHEET_ID not configured' });
-
+    const sid = getSettingsId();
+    if (!sid) return res.status(400).json({ error: 'Not configured' });
     const { facilities } = req.body as {
-      facilities: Array<{ id?: string; name: string; address: string; managerName: string }>;
+      facilities: Array<{ id?: string; type: string; name: string; address: string; managerName: string }>;
     };
-
     const rows = [
-      ['id', 'name', 'address', 'managerName'],
-      ...facilities.map(f => [f.id || uuid(), f.name, f.address, f.managerName]),
+      ['id', 'type', 'name', 'address', 'managerName'],
+      ...facilities.map(f => [f.id || uuid(), f.type || 'kyotaku', f.name, f.address, f.managerName]),
     ];
-
-    await setSheetData(token, settingsId, 'facilities!A1', rows);
+    await setSheetData(token, sid, 'facilities!A1', rows);
     res.json({ ok: true });
   } catch (err: any) {
-    console.error('Update facilities error:', err.message);
     res.status(500).json({ error: '事業所の保存に失敗しました' });
   }
 });
 
-// ── 利用者デフォルト事業所 ──
+// ── 知識ファイル管理 ──
 
-/** GET /api/settings/user-defaults — ログインユーザーのデフォルト事業所一覧 */
+settingsRouter.get('/knowledge-files', async (req: Request, res: Response) => {
+  try {
+    const token = getAccessToken(req);
+    if (!token) return res.status(401).json({ error: 'No access token' });
+    const sid = getSettingsId();
+    if (!sid) return res.json({ files: [] });
+    const rows = await getSheetData(sid, 'knowledgeFiles!A:E', token);
+    if (!rows || rows.length <= 1) return res.json({ files: [] });
+    const files = rows.slice(1).filter(r => r[0]).map(row => ({
+      id: row[0] || '',
+      driveFileId: row[1] || '',
+      name: row[2] || '',
+      mimeType: row[3] || '',
+      description: row[4] || '',
+    }));
+    res.json({ files });
+  } catch (err: any) {
+    res.status(500).json({ error: '知識ファイルの取得に失敗しました' });
+  }
+});
+
+settingsRouter.put('/knowledge-files', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const token = getAccessToken(req);
+    if (!token) return res.status(401).json({ error: 'No access token' });
+    const sid = getSettingsId();
+    if (!sid) return res.status(400).json({ error: 'Not configured' });
+    const { files } = req.body as {
+      files: Array<{ id?: string; driveFileId: string; name: string; mimeType: string; description: string }>;
+    };
+    const rows = [
+      ['id', 'driveFileId', 'name', 'mimeType', 'description'],
+      ...files.map(f => [f.id || uuid(), f.driveFileId, f.name, f.mimeType, f.description]),
+    ];
+    await setSheetData(token, sid, 'knowledgeFiles!A1', rows);
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: '知識ファイルの保存に失敗しました' });
+  }
+});
+
+// ── ユーザーデフォルト（利用者ごとの事業所 + 作成者名上書き） ──
+
 settingsRouter.get('/user-defaults', async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.json({ defaults: {} });
-
+    const sid = getSettingsId();
+    if (!sid) return res.json({ defaults: {}, managerNameOverride: '' });
     const email = req.session.user?.email || '';
-    const rows = await getSheetData(settingsId, 'userDefaults!A:D', token);
-    if (!rows || rows.length <= 1) return res.json({ defaults: {} });
+    const rows = await getSheetData(sid, 'userDefaults!A:E', token);
+    if (!rows || rows.length <= 1) return res.json({ defaults: {}, managerNameOverride: '' });
 
     const defaults: Record<string, string> = {};
+    let managerNameOverride = '';
     for (let i = 1; i < rows.length; i++) {
-      if (rows[i][0] === email && rows[i][1] && rows[i][2]) {
-        defaults[rows[i][1]] = rows[i][2]; // clientFolderId -> facilityId
+      if (rows[i][0] === email) {
+        if (rows[i][1] && rows[i][2]) {
+          defaults[rows[i][1]] = rows[i][2]; // clientFolderId -> facilityId
+        }
+        if (rows[i][3]) managerNameOverride = rows[i][3];
       }
     }
-    res.json({ defaults });
+    res.json({ defaults, managerNameOverride });
   } catch (err: any) {
-    console.error('Get user defaults error:', err.message);
     res.status(500).json({ error: 'デフォルト設定の取得に失敗しました' });
   }
 });
 
-/** PUT /api/settings/user-defaults — 利用者ごとのデフォルト事業所を保存/更新 */
 settingsRouter.put('/user-defaults', async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.status(400).json({ error: 'SETTINGS_SPREADSHEET_ID not configured' });
-
-    const { clientFolderId, facilityId } = req.body as {
+    const sid = getSettingsId();
+    if (!sid) return res.status(400).json({ error: 'Not configured' });
+    const { clientFolderId, facilityId, managerNameOverride } = req.body as {
       clientFolderId: string;
       facilityId: string;
+      managerNameOverride?: string;
     };
     const email = req.session.user?.email || '';
-
-    // Read existing, update or append
-    const rows = await getSheetData(settingsId, 'userDefaults!A:D', token);
-    const allRows = rows || [['userEmail', 'clientFolderId', 'facilityId', 'updatedAt']];
+    const rows = await getSheetData(sid, 'userDefaults!A:E', token);
+    const allRows = rows || [['userEmail', 'clientFolderId', 'facilityId', 'managerNameOverride', 'updatedAt']];
 
     let found = false;
     for (let i = 1; i < allRows.length; i++) {
       if (allRows[i][0] === email && allRows[i][1] === clientFolderId) {
         allRows[i][2] = facilityId;
-        allRows[i][3] = new Date().toISOString();
+        if (managerNameOverride !== undefined) allRows[i][3] = managerNameOverride;
+        allRows[i][4] = new Date().toISOString();
         found = true;
         break;
       }
     }
     if (!found) {
-      allRows.push([email, clientFolderId, facilityId, new Date().toISOString()]);
+      allRows.push([email, clientFolderId, facilityId, managerNameOverride || '', new Date().toISOString()]);
     }
-
-    await setSheetData(token, settingsId, 'userDefaults!A1', allRows);
+    await setSheetData(token, sid, 'userDefaults!A1', allRows);
     res.json({ ok: true });
   } catch (err: any) {
-    console.error('Update user defaults error:', err.message);
     res.status(500).json({ error: 'デフォルト設定の保存に失敗しました' });
   }
 });
 
-// ── General settings ──
+// ── General / Prompts / Allowlist / History ──
 
-/** GET /api/settings/general */
 settingsRouter.get('/general', async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.json({ settings: {} });
-
-    const rows = await getSheetData(settingsId, 'general!A:B', token);
+    const sid = getSettingsId();
+    if (!sid) return res.json({ settings: {} });
+    const rows = await getSheetData(sid, 'general!A:B', token);
     if (!rows) return res.json({ settings: {} });
-
     const settings: Record<string, string> = {};
     for (let i = 1; i < rows.length; i++) {
       if (rows[i][0]) settings[rows[i][0]] = rows[i][1] || '';
     }
     res.json({ settings });
   } catch (err: any) {
-    console.error('Get settings error:', err.message);
     res.status(500).json({ error: '設定の取得に失敗しました' });
   }
 });
 
-/** PUT /api/settings/general */
 settingsRouter.put('/general', requireAdmin, async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.status(400).json({ error: 'SETTINGS_SPREADSHEET_ID not configured' });
-
+    const sid = getSettingsId();
+    if (!sid) return res.status(400).json({ error: 'Not configured' });
     const { settings } = req.body as { settings: Record<string, string> };
     const rows = [['key', 'value'], ...Object.entries(settings).map(([k, v]) => [k, v])];
-    await setSheetData(token, settingsId, 'general!A1', rows);
+    await setSheetData(token, sid, 'general!A1', rows);
     res.json({ ok: true });
   } catch (err: any) {
-    console.error('Update settings error:', err.message);
     res.status(500).json({ error: '設定の保存に失敗しました' });
   }
 });
 
-// ── プロンプト ──
-
-/** GET /api/settings/prompts */
 settingsRouter.get('/prompts', async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.json({ prompts: [] });
-
-    const rows = await getSheetData(settingsId, 'prompts!A:C', token);
+    const sid = getSettingsId();
+    if (!sid) return res.json({ prompts: [] });
+    const rows = await getSheetData(sid, 'prompts!A:C', token);
     if (!rows || rows.length <= 1) return res.json({ prompts: [] });
-
-    const prompts = rows.slice(1).map(row => ({
-      id: row[0] || '',
-      title: row[1] || '',
-      body: row[2] || '',
-    }));
-    res.json({ prompts });
+    res.json({ prompts: rows.slice(1).map(row => ({ id: row[0] || '', title: row[1] || '', body: row[2] || '' })) });
   } catch (err: any) {
-    console.error('Get prompts error:', err.message);
     res.status(500).json({ error: 'プロンプトの取得に失敗しました' });
   }
 });
 
-/** PUT /api/settings/prompts */
 settingsRouter.put('/prompts', requireAdmin, async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.status(400).json({ error: 'SETTINGS_SPREADSHEET_ID not configured' });
-
+    const sid = getSettingsId();
+    if (!sid) return res.status(400).json({ error: 'Not configured' });
     const { prompts } = req.body as { prompts: Array<{ id: string; title: string; body: string }> };
     const rows = [['id', 'title', 'body'], ...prompts.map(p => [p.id, p.title, p.body])];
-    await setSheetData(token, settingsId, 'prompts!A1', rows);
+    await setSheetData(token, sid, 'prompts!A1', rows);
     res.json({ ok: true });
   } catch (err: any) {
-    console.error('Update prompts error:', err.message);
     res.status(500).json({ error: 'プロンプトの保存に失敗しました' });
   }
 });
 
-// ── 許可リスト ──
-
-/** GET /api/settings/allowlist */
 settingsRouter.get('/allowlist', requireAdmin, async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.json({ allowlist: [] });
-
-    const rows = await getSheetData(settingsId, 'allowlist!A:C', token);
+    const sid = getSettingsId();
+    if (!sid) return res.json({ allowlist: [] });
+    const rows = await getSheetData(sid, 'allowlist!A:C', token);
     if (!rows || rows.length <= 1) return res.json({ allowlist: [] });
-
-    const allowlist = rows.slice(1).map(row => ({
-      email: row[0] || '',
-      role: row[1] || 'user',
-      name: row[2] || '',
-    }));
-    res.json({ allowlist });
+    res.json({ allowlist: rows.slice(1).map(row => ({ email: row[0] || '', role: row[1] || 'user', name: row[2] || '' })) });
   } catch (err: any) {
-    console.error('Get allowlist error:', err.message);
     res.status(500).json({ error: '許可リストの取得に失敗しました' });
   }
 });
 
-/** PUT /api/settings/allowlist */
 settingsRouter.put('/allowlist', requireAdmin, async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.status(400).json({ error: 'SETTINGS_SPREADSHEET_ID not configured' });
-
+    const sid = getSettingsId();
+    if (!sid) return res.status(400).json({ error: 'Not configured' });
     const { allowlist } = req.body as { allowlist: Array<{ email: string; role: string; name: string }> };
     const rows = [['email', 'role', 'name'], ...allowlist.map(a => [a.email, a.role, a.name])];
-    await setSheetData(token, settingsId, 'allowlist!A1', rows);
+    await setSheetData(token, sid, 'allowlist!A1', rows);
     res.json({ ok: true });
   } catch (err: any) {
-    console.error('Update allowlist error:', err.message);
     res.status(500).json({ error: '許可リストの保存に失敗しました' });
   }
 });
 
-// ── 履歴 ──
-
-/** GET /api/settings/history */
 settingsRouter.get('/history', async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const settingsId = getSettingsId();
-    if (!settingsId) return res.json({ history: [] });
-
-    const rows = await getSheetData(settingsId, 'history!A:E', token);
+    const sid = getSettingsId();
+    if (!sid) return res.json({ history: [] });
+    const rows = await getSheetData(sid, 'history!A:E', token);
     if (!rows || rows.length <= 1) return res.json({ history: [] });
-
-    const history = rows.slice(1).map(row => ({
-      userId: row[0] || '',
-      userName: row[1] || '',
-      mode: row[2] || '',
-      exportedUrl: row[3] || '',
-      exportedAt: row[4] || '',
-    })).reverse();
-    res.json({ history });
+    res.json({
+      history: rows.slice(1).map(row => ({
+        userId: row[0] || '', userName: row[1] || '', mode: row[2] || '',
+        exportedUrl: row[3] || '', exportedAt: row[4] || '',
+      })).reverse(),
+    });
   } catch (err: any) {
-    console.error('Get history error:', err.message);
     res.status(500).json({ error: '履歴の取得に失敗しました' });
   }
 });

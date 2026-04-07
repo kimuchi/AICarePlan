@@ -15,6 +15,7 @@ export interface PromptVariables {
   フェイスシート: string;
   事業所名: string;
   管理者名: string;
+  知識ベース: string;
   第2表サービス?: string;
 }
 
@@ -23,7 +24,8 @@ export function buildVariables(
   user: UserInfo,
   sourceContents: Record<string, string>,
   facilityName: string,
-  managerName: string
+  managerName: string,
+  knowledgeBase: string
 ): PromptVariables {
   return {
     利用者名: user.name,
@@ -40,6 +42,7 @@ export function buildVariables(
     フェイスシート: sourceContents.facesheet || 'なし',
     事業所名: facilityName,
     管理者名: managerName,
+    知識ベース: knowledgeBase || '（知識ファイル未設定）',
   };
 }
 

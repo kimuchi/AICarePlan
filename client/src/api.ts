@@ -135,11 +135,12 @@ export async function analyzeSources(
   user: any,
   sourceContents: Record<string, string>,
   mode: BusinessMode,
-  facilityId?: string
+  facilityId?: string,
+  managerNameOverride?: string
 ): Promise<{ plans: GeneratedPlan[] }> {
   return request('/api/analyze', {
     method: 'POST',
-    body: JSON.stringify({ user, sourceContents, mode, facilityId }),
+    body: JSON.stringify({ user, sourceContents, mode, facilityId, managerNameOverride }),
   });
 }
 
@@ -215,9 +216,18 @@ export async function initSettings(): Promise<void> {
 
 export interface Facility {
   id: string;
+  type: 'kyotaku' | 'shoki';
   name: string;
   address: string;
   managerName: string;
+}
+
+export interface KnowledgeFile {
+  id: string;
+  driveFileId: string;
+  name: string;
+  mimeType: string;
+  description: string;
 }
 
 export async function getFacilities(): Promise<{ facilities: Facility[] }> {
@@ -239,13 +249,26 @@ export async function getModels(): Promise<{ generate: string; analyze: string }
 
 // ── User Defaults (per-client facility) ──
 
-export async function getUserDefaults(): Promise<{ defaults: Record<string, string> }> {
+export async function getUserDefaults(): Promise<{ defaults: Record<string, string>; managerNameOverride: string }> {
   return request('/api/settings/user-defaults');
 }
 
-export async function setUserDefault(clientFolderId: string, facilityId: string): Promise<void> {
+export async function setUserDefault(clientFolderId: string, facilityId: string, managerNameOverride?: string): Promise<void> {
   await request('/api/settings/user-defaults', {
     method: 'PUT',
-    body: JSON.stringify({ clientFolderId, facilityId }),
+    body: JSON.stringify({ clientFolderId, facilityId, managerNameOverride }),
+  });
+}
+
+// ── Knowledge Files ──
+
+export async function getKnowledgeFiles(): Promise<{ files: KnowledgeFile[] }> {
+  return request('/api/settings/knowledge-files');
+}
+
+export async function updateKnowledgeFiles(files: KnowledgeFile[]): Promise<void> {
+  await request('/api/settings/knowledge-files', {
+    method: 'PUT',
+    body: JSON.stringify({ files }),
   });
 }

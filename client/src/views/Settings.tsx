@@ -5,7 +5,8 @@ import {
   getPrompts, updatePrompts,
   getAllowlist, updateAllowlist,
   getModels,
-  type Facility,
+  getKnowledgeFiles, updateKnowledgeFiles,
+  type Facility, type KnowledgeFile,
 } from '../api';
 import type { SessionUser } from '../api';
 
@@ -15,7 +16,7 @@ interface Props {
   toast: (msg: string) => void;
 }
 
-type TabKey = 'facilities' | 'models' | 'prompt_kyotaku_table1' | 'prompt_kyotaku_table2' | 'prompt_kyotaku_table3' | 'prompt_shoki_table1' | 'prompt_shoki_table2' | 'prompt_shoki_table3' | 'allowlist';
+type TabKey = 'facilities' | 'knowledge' | 'models' | 'prompt_kyotaku_table1' | 'prompt_kyotaku_table2' | 'prompt_kyotaku_table3' | 'prompt_shoki_table1' | 'prompt_shoki_table2' | 'prompt_shoki_table3' | 'allowlist';
 
 const PROMPT_TABS: Array<{ key: TabKey; label: string }> = [
   { key: 'prompt_kyotaku_table1', label: '居宅 第1表' },
@@ -29,6 +30,7 @@ const PROMPT_TABS: Array<{ key: TabKey; label: string }> = [
 export default function Settings({ user, onBack, toast }: Props) {
   const [tab, setTab] = useState<TabKey>('facilities');
   const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeFile[]>([]);
   const [prompts, setPrompts] = useState<Array<{ id: string; title: string; body: string }>>([]);
   const [allowlist, setAllowlist] = useState<Array<{ email: string; role: string; name: string }>>([]);
   const [models, setModels] = useState<{ generate: string; analyze: string }>({ generate: '', analyze: '' });
@@ -39,6 +41,7 @@ export default function Settings({ user, onBack, toast }: Props) {
   useEffect(() => {
     Promise.all([
       getFacilities().then(r => setFacilities(r.facilities)),
+      getKnowledgeFiles().then(r => setKnowledgeFiles(r.files)),
       getPrompts().then(r => setPrompts(r.prompts)),
       getModels().then(r => setModels(r)),
       isAdmin ? getAllowlist().then(r => setAllowlist(r.allowlist)) : Promise.resolve(),
@@ -46,30 +49,29 @@ export default function Settings({ user, onBack, toast }: Props) {
   }, []);
 
   const saveFacilities = async () => {
-    try {
-      await updateFacilities(facilities);
-      toast('事業所を保存しました');
-    } catch (e: any) { toast(`保存エラー: ${e.message}`); }
+    try { await updateFacilities(facilities); toast('事業所を保存しました'); }
+    catch (e: any) { toast(`保存エラー: ${e.message}`); }
   };
-
+  const saveKnowledgeFiles = async () => {
+    try { await updateKnowledgeFiles(knowledgeFiles); toast('知識ファイルを保存しました'); }
+    catch (e: any) { toast(`保存エラー: ${e.message}`); }
+  };
   const savePrompts = async () => {
-    try {
-      await updatePrompts(prompts);
-      toast('プロンプトを保存しました');
-    } catch (e: any) { toast(`保存エラー: ${e.message}`); }
+    try { await updatePrompts(prompts); toast('プロンプトを保存しました'); }
+    catch (e: any) { toast(`保存エラー: ${e.message}`); }
   };
-
   const saveAllowlist = async () => {
-    try {
-      await updateAllowlist(allowlist);
-      toast('許可リストを保存しました');
-    } catch (e: any) { toast(`保存エラー: ${e.message}`); }
+    try { await updateAllowlist(allowlist); toast('許可リストを保存しました'); }
+    catch (e: any) { toast(`保存エラー: ${e.message}`); }
   };
 
   const updatePromptBody = (id: string, body: string) => {
     setPrompts(prev => prev.map(p => p.id === id ? { ...p, body } : p));
   };
   const getPromptBody = (id: string) => prompts.find(p => p.id === id)?.body || '';
+
+  const kyotakuFacilities = facilities.filter(f => f.type === 'kyotaku');
+  const shokiFacilities = facilities.filter(f => f.type === 'shoki');
 
   if (loading) return <div style={S.root}><div style={{ textAlign: 'center', padding: 60 }}>読み込み中...</div></div>;
 
@@ -83,122 +85,117 @@ export default function Settings({ user, onBack, toast }: Props) {
       <main style={S.settingsMain}>
         <div style={S.settingsTabBar}>
           <button style={tab === 'facilities' ? S.settingsTabActive : S.settingsTab} onClick={() => setTab('facilities')}>事業所</button>
+          <button style={tab === 'knowledge' ? S.settingsTabActive : S.settingsTab} onClick={() => setTab('knowledge')}>知識ファイル</button>
           <button style={tab === 'models' ? S.settingsTabActive : S.settingsTab} onClick={() => setTab('models')}>AIモデル</button>
           {PROMPT_TABS.map(pt => (
-            <button key={pt.key} style={tab === pt.key ? S.settingsTabActive : S.settingsTab} onClick={() => setTab(pt.key)}>
-              {pt.label}
-            </button>
+            <button key={pt.key} style={tab === pt.key ? S.settingsTabActive : S.settingsTab} onClick={() => setTab(pt.key)}>{pt.label}</button>
           ))}
           {isAdmin && (
             <button style={tab === 'allowlist' ? S.settingsTabActive : S.settingsTab} onClick={() => setTab('allowlist')}>許可リスト</button>
           )}
         </div>
 
-        {/* ── 事業所管理 ── */}
+        {/* ── 事業所管理（居宅/小多機別） ── */}
         {tab === 'facilities' && (
           <div style={S.settingsPanel}>
             <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
               {isAdmin
-                ? 'ケアプラン作成時に使用する事業所を登録します。複数登録でき、作成時に選択します。'
-                : '管理者が登録した事業所の一覧です。'}
+                ? '居宅介護支援と小規模多機能それぞれの事業所情報を登録します。計画作成者氏名はユーザーが個別に上書きできます。'
+                : '管理者が登録した事業所の一覧です。計画作成時に選択します。'}
             </p>
-            {facilities.map((fac, idx) => (
-              <div key={fac.id || idx} style={{ padding: '16px', marginBottom: 12, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>事業所 {idx + 1}</span>
-                  {isAdmin && (
-                    <button
-                      style={{ ...S.secondaryBtn, padding: '4px 10px', fontSize: 11, color: '#dc2626' }}
-                      onClick={() => setFacilities(facilities.filter((_, i) => i !== idx))}
-                    >
-                      削除
-                    </button>
-                  )}
-                </div>
-                <label style={{ ...S.fieldLabel, marginTop: 0 }}>事業所名</label>
-                <input
-                  style={S.input}
-                  value={fac.name}
-                  readOnly={!isAdmin}
-                  onChange={e => {
-                    const updated = [...facilities];
-                    updated[idx] = { ...updated[idx], name: e.target.value };
-                    setFacilities(updated);
-                  }}
-                />
-                <label style={S.fieldLabel}>所在地</label>
-                <input
-                  style={S.input}
-                  value={fac.address}
-                  readOnly={!isAdmin}
-                  onChange={e => {
-                    const updated = [...facilities];
-                    updated[idx] = { ...updated[idx], address: e.target.value };
-                    setFacilities(updated);
-                  }}
-                />
-                <label style={S.fieldLabel}>計画作成者氏名</label>
-                <input
-                  style={S.input}
-                  value={fac.managerName}
-                  readOnly={!isAdmin}
-                  onChange={e => {
-                    const updated = [...facilities];
-                    updated[idx] = { ...updated[idx], managerName: e.target.value };
-                    setFacilities(updated);
-                  }}
-                />
-              </div>
-            ))}
+
+            {/* 居宅介護支援 */}
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f2942', margin: '20px 0 10px', paddingBottom: 6, borderBottom: '2px solid #0f2942' }}>
+              居宅介護支援
+            </h3>
+            {renderFacilityList(kyotakuFacilities, 'kyotaku')}
+
+            {/* 小規模多機能 */}
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#0f2942', margin: '24px 0 10px', paddingBottom: 6, borderBottom: '2px solid #0f2942' }}>
+              小規模多機能型居宅介護
+            </h3>
+            {renderFacilityList(shokiFacilities, 'shoki')}
+
             {isAdmin && (
-              <>
-                <button
-                  style={{ ...S.secondaryBtn, marginBottom: 8 }}
-                  onClick={() => setFacilities([...facilities, { id: '', name: '', address: '', managerName: '' }])}
-                >
-                  + 事業所を追加
-                </button>
-                <div><button style={S.saveBtn} onClick={saveFacilities}>保存</button></div>
-              </>
-            )}
-            {!isAdmin && facilities.length === 0 && (
-              <p style={{ color: '#94a3b8', fontSize: 13 }}>事業所が登録されていません。管理者に登録を依頼してください。</p>
+              <div style={{ marginTop: 16 }}><button style={S.saveBtn} onClick={saveFacilities}>保存</button></div>
             )}
           </div>
         )}
 
-        {/* ── AIモデル（読み取り専用） ── */}
+        {/* ── 知識ファイル ── */}
+        {tab === 'knowledge' && (
+          <div style={S.settingsPanel}>
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+              {isAdmin
+                ? 'ケアプラン作成時にAIが必ず参照する知識ファイルを登録します。Googleドライブ上のファイルIDを指定してください。'
+                : 'AIが参照する知識ファイルの一覧です。'}
+            </p>
+            <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
+              運営基準、様式・記載例、運営推進会議資料など、計画作成の根拠となる文書を登録してください。
+              プロンプト内の <code>{'{知識ベース}'}</code> に展開されます。
+            </p>
+            {knowledgeFiles.map((kf, idx) => (
+              <div key={kf.id || idx} style={{ padding: '14px', marginBottom: 10, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>ファイル {idx + 1}</span>
+                  {isAdmin && (
+                    <button style={{ ...S.secondaryBtn, padding: '4px 10px', fontSize: 11, color: '#dc2626' }}
+                      onClick={() => setKnowledgeFiles(knowledgeFiles.filter((_, i) => i !== idx))}>削除</button>
+                  )}
+                </div>
+                <label style={{ ...S.fieldLabel, marginTop: 0 }}>GoogleドライブのファイルID</label>
+                <input style={S.input} readOnly={!isAdmin} value={kf.driveFileId}
+                  placeholder="GoogleドライブURLの /d/ と /edit の間のID"
+                  onChange={e => { const u = [...knowledgeFiles]; u[idx] = { ...u[idx], driveFileId: e.target.value }; setKnowledgeFiles(u); }} />
+                <label style={S.fieldLabel}>ファイル名（表示用）</label>
+                <input style={S.input} readOnly={!isAdmin} value={kf.name}
+                  placeholder="例: 運営基準.pdf"
+                  onChange={e => { const u = [...knowledgeFiles]; u[idx] = { ...u[idx], name: e.target.value }; setKnowledgeFiles(u); }} />
+                <label style={S.fieldLabel}>MIMEタイプ</label>
+                <select style={S.input} disabled={!isAdmin} value={kf.mimeType}
+                  onChange={e => { const u = [...knowledgeFiles]; u[idx] = { ...u[idx], mimeType: e.target.value }; setKnowledgeFiles(u); }}>
+                  <option value="application/pdf">PDF</option>
+                  <option value="application/vnd.google-apps.document">Googleドキュメント</option>
+                  <option value="application/json">JSON</option>
+                  <option value="text/plain">テキスト</option>
+                </select>
+                <label style={S.fieldLabel}>説明（AIへの参照時のラベル）</label>
+                <input style={S.input} readOnly={!isAdmin} value={kf.description}
+                  placeholder="例: 小規模多機能型居宅介護の運営基準"
+                  onChange={e => { const u = [...knowledgeFiles]; u[idx] = { ...u[idx], description: e.target.value }; setKnowledgeFiles(u); }} />
+              </div>
+            ))}
+            {isAdmin && (
+              <>
+                <button style={{ ...S.secondaryBtn, marginBottom: 8 }}
+                  onClick={() => setKnowledgeFiles([...knowledgeFiles, { id: '', driveFileId: '', name: '', mimeType: 'application/pdf', description: '' }])}>
+                  + 知識ファイルを追加
+                </button>
+                <div><button style={S.saveBtn} onClick={saveKnowledgeFiles}>保存</button></div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── AIモデル ── */}
         {tab === 'models' && (
           <div style={S.settingsPanel}>
             <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
-              AIモデルはサーバーの環境変数（.env）で設定されています。変更が必要な場合はサーバー管理者に連絡してください。
+              AIモデルはサーバーの環境変数（.env）で設定されています。
             </p>
             <label style={S.fieldLabel}>プラン生成用モデル</label>
             <input style={{ ...S.input, background: '#f1f5f9', color: '#475569' }} value={models.generate} readOnly />
-            <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
-              ケアプラン3案の生成に使用。高品質モデル推奨。
-            </p>
             <label style={S.fieldLabel}>PDF解析・要約用モデル</label>
             <input style={{ ...S.input, background: '#f1f5f9', color: '#475569' }} value={models.analyze} readOnly />
-            <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
-              PDF読み取り・長文要約に使用。高速・低コストモデル推奨。
-            </p>
           </div>
         )}
 
         {/* ── プロンプト ── */}
         {PROMPT_TABS.some(pt => pt.key === tab) && (
           <div style={S.settingsPanel}>
-            <label style={S.fieldLabel}>
-              {PROMPT_TABS.find(pt => pt.key === tab)?.label} 生成プロンプト
-            </label>
+            <label style={S.fieldLabel}>{PROMPT_TABS.find(pt => pt.key === tab)?.label} 生成プロンプト</label>
             {isAdmin ? (
-              <textarea
-                style={S.textarea}
-                rows={18}
-                value={getPromptBody(tab)}
-                onChange={e => updatePromptBody(tab, e.target.value)}
-              />
+              <textarea style={S.textarea} rows={18} value={getPromptBody(tab)} onChange={e => updatePromptBody(tab, e.target.value)} />
             ) : (
               <pre style={{ ...S.textarea, background: '#f1f5f9', whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.7 }}>
                 {getPromptBody(tab) || '（未設定）'}
@@ -206,7 +203,7 @@ export default function Settings({ user, onBack, toast }: Props) {
             )}
             <div style={S.promptHint}>
               <span style={{ fontWeight: 600 }}>使用可能な変数:</span>
-              {' {利用者名} {要介護度} {生年月日} {住所} {アセスメント情報} {既存ケアプラン} {通い記録} {訪問記録} {泊まり記録} {主治医意見書} {担当者会議録} {フェイスシート} {事業所名} {管理者名}'}
+              {' {利用者名} {要介護度} {生年月日} {住所} {アセスメント情報} {既存ケアプラン} {通い記録} {訪問記録} {泊まり記録} {主治医意見書} {担当者会議録} {フェイスシート} {事業所名} {管理者名} {知識ベース}'}
             </div>
             {isAdmin && <button style={S.saveBtn} onClick={savePrompts}>保存</button>}
           </div>
@@ -216,62 +213,68 @@ export default function Settings({ user, onBack, toast }: Props) {
         {tab === 'allowlist' && isAdmin && (
           <div style={S.settingsPanel}>
             <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
-              ログインを許可するメールアドレスを管理します。<code>admin</code> ロールのユーザーは設定の編集ができます。
+              ログインを許可するメールアドレスを管理します。<code>admin</code> は設定の編集が可能です。
             </p>
             {allowlist.map((entry, idx) => (
               <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                <input
-                  style={{ ...S.input, flex: 2 }}
-                  placeholder="メールアドレス"
-                  value={entry.email}
-                  onChange={e => {
-                    const updated = [...allowlist];
-                    updated[idx] = { ...updated[idx], email: e.target.value };
-                    setAllowlist(updated);
-                  }}
-                />
-                <select
-                  style={{ ...S.input, flex: 0, width: 100 }}
-                  value={entry.role}
-                  onChange={e => {
-                    const updated = [...allowlist];
-                    updated[idx] = { ...updated[idx], role: e.target.value };
-                    setAllowlist(updated);
-                  }}
-                >
+                <input style={{ ...S.input, flex: 2 }} placeholder="メールアドレス" value={entry.email}
+                  onChange={e => { const u = [...allowlist]; u[idx] = { ...u[idx], email: e.target.value }; setAllowlist(u); }} />
+                <select style={{ ...S.input, flex: 0, width: 100 }} value={entry.role}
+                  onChange={e => { const u = [...allowlist]; u[idx] = { ...u[idx], role: e.target.value }; setAllowlist(u); }}>
                   <option value="user">user</option>
                   <option value="admin">admin</option>
                 </select>
-                <input
-                  style={{ ...S.input, flex: 1 }}
-                  placeholder="名前"
-                  value={entry.name}
-                  onChange={e => {
-                    const updated = [...allowlist];
-                    updated[idx] = { ...updated[idx], name: e.target.value };
-                    setAllowlist(updated);
-                  }}
-                />
-                <button
-                  style={{ ...S.secondaryBtn, padding: '8px 12px', fontSize: 12, color: '#dc2626' }}
-                  onClick={() => setAllowlist(allowlist.filter((_, i) => i !== idx))}
-                >
-                  削除
-                </button>
+                <input style={{ ...S.input, flex: 1 }} placeholder="名前" value={entry.name}
+                  onChange={e => { const u = [...allowlist]; u[idx] = { ...u[idx], name: e.target.value }; setAllowlist(u); }} />
+                <button style={{ ...S.secondaryBtn, padding: '8px 12px', fontSize: 12, color: '#dc2626' }}
+                  onClick={() => setAllowlist(allowlist.filter((_, i) => i !== idx))}>削除</button>
               </div>
             ))}
-            <button
-              style={{ ...S.secondaryBtn, marginTop: 8 }}
-              onClick={() => setAllowlist([...allowlist, { email: '', role: 'user', name: '' }])}
-            >
-              + 追加
-            </button>
-            <div style={{ marginTop: 16 }}>
-              <button style={S.saveBtn} onClick={saveAllowlist}>保存</button>
-            </div>
+            <button style={{ ...S.secondaryBtn, marginTop: 8 }}
+              onClick={() => setAllowlist([...allowlist, { email: '', role: 'user', name: '' }])}>+ 追加</button>
+            <div style={{ marginTop: 16 }}><button style={S.saveBtn} onClick={saveAllowlist}>保存</button></div>
           </div>
         )}
       </main>
     </div>
   );
+
+  function renderFacilityList(facList: Facility[], type: 'kyotaku' | 'shoki') {
+    return (
+      <>
+        {facList.map((fac) => {
+          const idx = facilities.findIndex(f => f === fac);
+          return (
+            <div key={fac.id || idx} style={{ padding: '14px', marginBottom: 10, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>{fac.name || '（未入力）'}</span>
+                {isAdmin && (
+                  <button style={{ ...S.secondaryBtn, padding: '4px 10px', fontSize: 11, color: '#dc2626' }}
+                    onClick={() => setFacilities(facilities.filter((_, i) => i !== idx))}>削除</button>
+                )}
+              </div>
+              <label style={{ ...S.fieldLabel, marginTop: 0 }}>事業所名</label>
+              <input style={S.input} readOnly={!isAdmin} value={fac.name}
+                onChange={e => { const u = [...facilities]; u[idx] = { ...u[idx], name: e.target.value }; setFacilities(u); }} />
+              <label style={S.fieldLabel}>所在地</label>
+              <input style={S.input} readOnly={!isAdmin} value={fac.address}
+                onChange={e => { const u = [...facilities]; u[idx] = { ...u[idx], address: e.target.value }; setFacilities(u); }} />
+              <label style={S.fieldLabel}>計画作成者氏名（デフォルト）</label>
+              <input style={S.input} readOnly={!isAdmin} value={fac.managerName}
+                onChange={e => { const u = [...facilities]; u[idx] = { ...u[idx], managerName: e.target.value }; setFacilities(u); }} />
+            </div>
+          );
+        })}
+        {isAdmin && (
+          <button style={{ ...S.secondaryBtn, marginTop: 4, marginBottom: 8 }}
+            onClick={() => setFacilities([...facilities, { id: '', type, name: '', address: '', managerName: '' }])}>
+            + {type === 'kyotaku' ? '居宅' : '小多機'}事業所を追加
+          </button>
+        )}
+        {facList.length === 0 && !isAdmin && (
+          <p style={{ color: '#94a3b8', fontSize: 13 }}>登録されていません。管理者に依頼してください。</p>
+        )}
+      </>
+    );
+  }
 }
