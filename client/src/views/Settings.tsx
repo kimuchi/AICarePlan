@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { S } from '../styles';
+import DrivePicker, { type PickedFile } from '../components/DrivePicker';
 import {
   getFacilities, updateFacilities,
   getPrompts, updatePrompts,
@@ -125,53 +126,86 @@ export default function Settings({ user, onBack, toast }: Props) {
         {/* ── 知識ファイル ── */}
         {tab === 'knowledge' && (
           <div style={S.settingsPanel}>
-            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
-              {isAdmin
-                ? 'ケアプラン作成時にAIが必ず参照する知識ファイルを登録します。Googleドライブ上のファイルIDを指定してください。'
-                : 'AIが参照する知識ファイルの一覧です。'}
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>
+              ケアプラン作成時にAIが必ず参照する知識ファイルです。
+              プロンプト内の <code>{'{知識ベース}'}</code> に展開されます。
             </p>
             <p style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
               運営基準、様式・記載例、運営推進会議資料など、計画作成の根拠となる文書を登録してください。
-              プロンプト内の <code>{'{知識ベース}'}</code> に展開されます。
             </p>
+
             {knowledgeFiles.map((kf, idx) => (
-              <div key={kf.id || idx} style={{ padding: '14px', marginBottom: 10, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>ファイル {idx + 1}</span>
-                  {isAdmin && (
-                    <button style={{ ...S.secondaryBtn, padding: '4px 10px', fontSize: 11, color: '#dc2626' }}
-                      onClick={() => setKnowledgeFiles(knowledgeFiles.filter((_, i) => i !== idx))}>削除</button>
-                  )}
+              <div key={kf.id || idx} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 16px', marginBottom: 8,
+                background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0',
+              }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>
+                  {kf.mimeType === 'application/pdf' ? '📕' :
+                   kf.mimeType?.includes('document') ? '📄' :
+                   kf.mimeType === 'application/json' ? '📋' : '📎'}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {kf.name || '（名称未設定）'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                    {kf.mimeType} ・ ID: {kf.driveFileId?.slice(0, 20)}...
+                  </div>
+                  <input
+                    style={{ ...S.input, marginTop: 6, fontSize: 12, padding: '6px 10px' }}
+                    placeholder="説明（例: 小規模多機能型居宅介護の運営基準）"
+                    value={kf.description}
+                    readOnly={!isAdmin}
+                    onChange={e => {
+                      const u = [...knowledgeFiles];
+                      u[idx] = { ...u[idx], description: e.target.value };
+                      setKnowledgeFiles(u);
+                    }}
+                  />
                 </div>
-                <label style={{ ...S.fieldLabel, marginTop: 0 }}>GoogleドライブのファイルID</label>
-                <input style={S.input} readOnly={!isAdmin} value={kf.driveFileId}
-                  placeholder="GoogleドライブURLの /d/ と /edit の間のID"
-                  onChange={e => { const u = [...knowledgeFiles]; u[idx] = { ...u[idx], driveFileId: e.target.value }; setKnowledgeFiles(u); }} />
-                <label style={S.fieldLabel}>ファイル名（表示用）</label>
-                <input style={S.input} readOnly={!isAdmin} value={kf.name}
-                  placeholder="例: 運営基準.pdf"
-                  onChange={e => { const u = [...knowledgeFiles]; u[idx] = { ...u[idx], name: e.target.value }; setKnowledgeFiles(u); }} />
-                <label style={S.fieldLabel}>MIMEタイプ</label>
-                <select style={S.input} disabled={!isAdmin} value={kf.mimeType}
-                  onChange={e => { const u = [...knowledgeFiles]; u[idx] = { ...u[idx], mimeType: e.target.value }; setKnowledgeFiles(u); }}>
-                  <option value="application/pdf">PDF</option>
-                  <option value="application/vnd.google-apps.document">Googleドキュメント</option>
-                  <option value="application/json">JSON</option>
-                  <option value="text/plain">テキスト</option>
-                </select>
-                <label style={S.fieldLabel}>説明（AIへの参照時のラベル）</label>
-                <input style={S.input} readOnly={!isAdmin} value={kf.description}
-                  placeholder="例: 小規模多機能型居宅介護の運営基準"
-                  onChange={e => { const u = [...knowledgeFiles]; u[idx] = { ...u[idx], description: e.target.value }; setKnowledgeFiles(u); }} />
+                {isAdmin && (
+                  <button
+                    style={{ ...S.secondaryBtn, padding: '6px 10px', fontSize: 11, color: '#dc2626', flexShrink: 0 }}
+                    onClick={() => setKnowledgeFiles(knowledgeFiles.filter((_, i) => i !== idx))}
+                  >
+                    削除
+                  </button>
+                )}
               </div>
             ))}
+
+            {knowledgeFiles.length === 0 && (
+              <p style={{ color: '#94a3b8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>
+                知識ファイルが登録されていません
+              </p>
+            )}
+
             {isAdmin && (
               <>
-                <button style={{ ...S.secondaryBtn, marginBottom: 8 }}
-                  onClick={() => setKnowledgeFiles([...knowledgeFiles, { id: '', driveFileId: '', name: '', mimeType: 'application/pdf', description: '' }])}>
-                  + 知識ファイルを追加
-                </button>
-                <div><button style={S.saveBtn} onClick={saveKnowledgeFiles}>保存</button></div>
+                <div style={{ marginTop: 12 }}>
+                  <DrivePicker
+                    multiSelect
+                    buttonLabel="Googleドライブからファイルを選択"
+                    onPick={(files: PickedFile[]) => {
+                      const newFiles = files
+                        .filter(f => !knowledgeFiles.some(kf => kf.driveFileId === f.id))
+                        .map(f => ({
+                          id: '',
+                          driveFileId: f.id,
+                          name: f.name,
+                          mimeType: f.mimeType,
+                          description: '',
+                        }));
+                      if (newFiles.length > 0) {
+                        setKnowledgeFiles([...knowledgeFiles, ...newFiles]);
+                      }
+                    }}
+                  />
+                </div>
+                <div style={{ marginTop: 16 }}>
+                  <button style={S.saveBtn} onClick={saveKnowledgeFiles}>保存</button>
+                </div>
               </>
             )}
           </div>

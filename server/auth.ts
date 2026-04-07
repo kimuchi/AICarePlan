@@ -153,6 +153,17 @@ export function setupAuth(app: Express): void {
       res.json({ ok: true });
     });
   });
+
+  // Drive Picker用: アクセストークンとクライアントIDを返す
+  app.get('/auth/picker-config', (req, res) => {
+    if (!req.session.user || !req.session.accessToken) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    res.json({
+      accessToken: req.session.accessToken,
+      clientId: clientID || '',
+    });
+  });
 }
 
 /** Middleware: require authentication */

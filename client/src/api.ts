@@ -41,6 +41,10 @@ export async function logout(): Promise<void> {
   await request('/auth/logout', { method: 'POST' });
 }
 
+export async function getPickerConfig(): Promise<{ accessToken: string; clientId: string }> {
+  return request('/auth/picker-config');
+}
+
 // ── Users ──
 
 export interface UserFolder {
