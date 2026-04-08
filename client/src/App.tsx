@@ -8,10 +8,11 @@ import SourceSelect from './views/Create/SourceSelect';
 import PlanEdit from './views/Create/PlanEdit';
 import {
   getMe, logout as apiLogout,
-  fetchSourceContents, analyzeSources, exportToSheets, saveDraft,
-  getFacilities,
+  fetchSourceContents, analyzeSources, exportToSheets,
+  getFacilities, savePlan, listPlans, loadPlan, extractExistingPlanFromFile,
   type SessionUser, type UserFolder, type SourceFile,
   type GeneratedPlan, type BusinessMode, type Facility, type ExtractedUserProfile,
+  type SavedPlanSummary,
 } from './api';
 
 const STEPS = ['利用者選択', '情報源選択', 'プラン編集・確認', 'エクスポート'];
@@ -94,6 +95,8 @@ export default function App() {
   const [existingPlan, setExistingPlan] = useState<GeneratedPlan | null>(null);
   const [userProfile, setUserProfile] = useState<ExtractedUserProfile | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
+  const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
+  const [savedPlans, setSavedPlans] = useState<SavedPlanSummary[]>([]);
 
   // 事業所IDが変わったら事業所データを更新
   useEffect(() => {
@@ -138,6 +141,8 @@ export default function App() {
     setExistingPlan(null);
     setUserProfile(null);
     setExportUrl(null);
+    setCurrentPlanId(null);
+    setSavedPlans([]);
   };
 
   const handleAnalyze = async () => {
@@ -153,9 +158,9 @@ export default function App() {
         mimeTypes
       );
 
-      // Organize contents by category + try to parse existing plan JSON
+      // Organize contents by category
       const sourceContents: Record<string, string> = {};
-      let parsedExistingPlan: GeneratedPlan | null = null;
+      const careplanSources: Array<{ id: string; mimeType: string }> = [];
 
       for (const src of selectedSources) {
         const c = contents[src.id];
@@ -163,13 +168,41 @@ export default function App() {
         const cat = src.category;
         sourceContents[cat] = (sourceContents[cat] || '') + '\n' + c.content;
 
-        // 既存ケアプランJSONの解析を試みる
-        if (cat === 'careplan' && c.type === 'json') {
-          try {
-            const parsed = JSON.parse(c.content);
-            // Autofilerの解析結果JSONからプラン構造を構築
-            parsedExistingPlan = buildExistingPlanFromJson(parsed);
-          } catch { /* not a structured plan JSON */ }
+        // 既存ケアプランのファイルを記録
+        if (cat === 'careplan') {
+          careplanSources.push({ id: src.id, mimeType: src.mimeType });
+        }
+      }
+
+      // 既存ケアプランを専用APIで構造化抽出（JSON/PDF両対応）
+      let parsedExistingPlan: GeneratedPlan | null = null;
+      if (careplanSources.length > 0) {
+        try {
+          // まずクライアント側でJSONパースを試みる
+          const cpSrc = careplanSources[0];
+          const cpContent = contents[cpSrc.id];
+          if (cpContent?.type === 'json') {
+            try {
+              const parsed = JSON.parse(cpContent.content);
+              parsedExistingPlan = buildExistingPlanFromJson(parsed);
+            } catch { /* fall through to server extraction */ }
+          }
+          // JSONパースに失敗、またはPDFの場合 → サーバー側で専用プロンプトで抽出
+          if (!parsedExistingPlan) {
+            const extracted = await extractExistingPlanFromFile(cpSrc.id, cpSrc.mimeType);
+            if (extracted.existingPlan) {
+              parsedExistingPlan = {
+                id: 'EXISTING',
+                label: '既存プラン',
+                summary: '情報源から読み込んだ既存のケアプランです。',
+                table1: extracted.existingPlan.table1 || { userWishes: '', familyWishes: '', assessmentResult: '', committeeOpinion: '', totalPolicy: '', livingSupportReason: '' },
+                table2: extracted.existingPlan.table2 || [],
+                table3: extracted.existingPlan.table3 || { schedule: [], dailyActivities: [], weeklyService: '' },
+              };
+            }
+          }
+        } catch (err) {
+          console.warn('Existing plan extraction failed:', err);
         }
       }
       setExistingPlan(parsedExistingPlan);
@@ -249,7 +282,20 @@ export default function App() {
   const handleSaveDraft = async (plan: GeneratedPlan) => {
     if (!selectedUser) return;
     try {
-      await saveDraft(selectedUser.name, JSON.stringify(plan), mode);
+      const result = await savePlan({
+        planId: currentPlanId || undefined,
+        clientFolderId: selectedUser.folderId,
+        clientName: selectedUser.name,
+        mode,
+        status: 'draft',
+        planJson: JSON.stringify({
+          plans: plans,
+          existingPlan,
+          userProfile,
+          selectedPlan: plan,
+        }),
+      });
+      setCurrentPlanId(result.planId);
       toast('下書きを保存しました');
     } catch (err: any) {
       toast(`保存エラー: ${err.message}`);
@@ -386,6 +432,23 @@ export default function App() {
             selectedUser={selectedUser}
             onSelect={setSelectedUser}
             onNext={() => setStep(1)}
+            savedPlans={savedPlans}
+            onSavedPlansChange={setSavedPlans}
+            onLoadPlan={async (planId) => {
+              try {
+                const data = await loadPlan(planId);
+                const planData = data.plan || {};
+                if (planData.plans) setPlans(planData.plans);
+                if (planData.existingPlan) setExistingPlan(planData.existingPlan);
+                if (planData.userProfile) setUserProfile(planData.userProfile);
+                if (data.mode) setMode(data.mode as BusinessMode);
+                setCurrentPlanId(planId);
+                setStep(2);
+                toast('プランを読み込みました');
+              } catch (err: any) {
+                toast(`読み込みエラー: ${err.message}`);
+              }
+            }}
           />
         )}
 
@@ -435,6 +498,19 @@ export default function App() {
             onSaveDraft={handleSaveDraft}
             onExport={handleExport}
             onProceedExport={() => setStep(3)}
+            currentPlanId={currentPlanId}
+            onShare={async (planId) => {
+              const emails = prompt('共有先のメールアドレスを入力（カンマ区切り、全員共有は * ）');
+              if (emails !== null) {
+                try {
+                  const { sharePlan } = await import('./api');
+                  await sharePlan(planId, emails);
+                  toast('共有設定を保存しました');
+                } catch (err: any) {
+                  toast(`共有エラー: ${err.message}`);
+                }
+              }
+            }}
           />
         )}
 

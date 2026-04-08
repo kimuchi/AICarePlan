@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { S } from '../../styles';
-import { getUsers, type UserFolder } from '../../api';
+import { getUsers, listPlans, type UserFolder, type SavedPlanSummary } from '../../api';
 
 interface Props {
   selectedUser: UserFolder | null;
   onSelect: (user: UserFolder) => void;
   onNext: () => void;
+  onLoadPlan: (planId: string) => void;
+  savedPlans: SavedPlanSummary[];
+  onSavedPlansChange: (plans: SavedPlanSummary[]) => void;
 }
 
-export default function UserSelect({ selectedUser, onSelect, onNext }: Props) {
+export default function UserSelect({ selectedUser, onSelect, onNext, onLoadPlan, savedPlans, onSavedPlansChange }: Props) {
   const [users, setUsers] = useState<UserFolder[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -21,6 +24,14 @@ export default function UserSelect({ selectedUser, onSelect, onNext }: Props) {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  // 利用者選択時に保存済みプランを読み込み
+  useEffect(() => {
+    if (!selectedUser) { onSavedPlansChange([]); return; }
+    listPlans(selectedUser.folderId)
+      .then(r => onSavedPlansChange(r.plans))
+      .catch(() => onSavedPlansChange([]));
+  }, [selectedUser?.folderId]);
 
   const filtered = users.filter(u =>
     u.name.includes(search) || u.folderName.includes(search)
@@ -71,13 +82,46 @@ export default function UserSelect({ selectedUser, onSelect, onNext }: Props) {
         </p>
       )}
 
+      {/* 保存済みプラン一覧 */}
+      {selectedUser && savedPlans.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#334155', marginBottom: 10 }}>
+            保存済みプラン（{savedPlans.length}件）
+          </h3>
+          {savedPlans.map(p => (
+            <div key={p.planId} style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+              marginBottom: 6, background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0',
+              cursor: 'pointer',
+            }} onClick={() => onLoadPlan(p.planId)}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+                background: p.status === 'draft' ? '#fef3c7' : '#dcfce7',
+                color: p.status === 'draft' ? '#92400e' : '#166534',
+              }}>
+                {p.status === 'draft' ? '下書き' : '完成'}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>
+                  {p.mode === 'shoki' ? '小多機' : '居宅'} ・ {p.authorName}
+                </div>
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                  {p.updatedAt.split('T')[0]} {p.authorEmail !== '' ? `(${p.authorEmail})` : ''}
+                </div>
+              </div>
+              <span style={{ fontSize: 12, color: '#0f2942', fontWeight: 600 }}>開く &rarr;</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={S.stepActions}>
         <button
           style={selectedUser ? S.primaryBtn : S.disabledBtn}
           disabled={!selectedUser}
           onClick={onNext}
         >
-          次へ: 情報源を選択 &rarr;
+          新規作成: 情報源を選択 &rarr;
         </button>
       </div>
     </div>

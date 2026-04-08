@@ -31,6 +31,8 @@ interface Props {
   onSaveDraft: (plan: GeneratedPlan) => void;
   onExport: (plan: GeneratedPlan) => void;
   onProceedExport: () => void;
+  currentPlanId?: string | null;
+  onShare?: (planId: string) => void;
 }
 
 const PLAN_COLORS: Record<string, string> = {
@@ -41,7 +43,7 @@ const PLAN_COLORS: Record<string, string> = {
 
 export default function PlanEdit({
   plans, existingPlan, userMeta, planMeta, mode,
-  onSaveDraft, onExport, onProceedExport,
+  onSaveDraft, onExport, onProceedExport, currentPlanId, onShare,
 }: Props) {
   const [activePlanId, setActivePlanId] = useState(plans.length > 0 ? plans[plans.length - 1].id : 'EXISTING');
   const [activeTable, setActiveTable] = useState<'table1' | 'table2' | 'table3'>('table1');
@@ -161,6 +163,11 @@ export default function PlanEdit({
 
       <div style={S.stepActions}>
         <button style={S.secondaryBtn} onClick={() => onSaveDraft(activePlan)}>下書き保存</button>
+        {currentPlanId && onShare && (
+          <button style={S.secondaryBtn} onClick={() => onShare(currentPlanId)}>
+            共有
+          </button>
+        )}
         <button
           style={{ ...S.primaryBtn, background: '#0f7c3f' }}
           onClick={() => onExport(activePlan)}

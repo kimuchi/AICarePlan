@@ -291,3 +291,65 @@ export async function updateKnowledgeFiles(files: KnowledgeFile[]): Promise<void
     body: JSON.stringify({ files }),
   });
 }
+
+// ── Plans (保存・一覧・読込・共有) ──
+
+export interface SavedPlanSummary {
+  planId: string;
+  clientFolderId: string;
+  clientName: string;
+  authorEmail: string;
+  authorName: string;
+  mode: string;
+  status: 'draft' | 'completed';
+  updatedAt: string;
+}
+
+export async function savePlan(params: {
+  planId?: string;
+  clientFolderId: string;
+  clientName: string;
+  mode: BusinessMode;
+  status: 'draft' | 'completed';
+  planJson: string;
+}): Promise<{ ok: boolean; planId: string }> {
+  return request('/api/plans/save', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function listPlans(clientFolderId: string): Promise<{ plans: SavedPlanSummary[] }> {
+  return request(`/api/plans/list/${clientFolderId}`);
+}
+
+export async function loadPlan(planId: string): Promise<{
+  planId: string;
+  clientName: string;
+  mode: string;
+  status: string;
+  plan: any;
+  sharedWith: string;
+  authorEmail: string;
+  authorName: string;
+}> {
+  return request(`/api/plans/load/${planId}`);
+}
+
+export async function sharePlan(planId: string, sharedWith: string): Promise<void> {
+  await request(`/api/plans/share/${planId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ sharedWith }),
+  });
+}
+
+export async function deletePlan(planId: string): Promise<void> {
+  await request(`/api/plans/${planId}`, { method: 'DELETE' });
+}
+
+export async function extractExistingPlanFromFile(fileId: string, mimeType: string): Promise<{ existingPlan: any }> {
+  return request('/api/plans/extract-existing', {
+    method: 'POST',
+    body: JSON.stringify({ fileId, mimeType }),
+  });
+}

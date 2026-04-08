@@ -456,15 +456,13 @@ export async function initializeSettingsSpreadsheet(
     requestBody: { values: [['userEmail', 'clientFolderId', 'facilityId', 'managerNameOverride', 'updatedAt']] },
   });
 
-  // Initialize drafts header
-  if (sheetsToCreate.includes('drafts')) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: 'drafts!A1:E1',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [['user_id', 'user_name', 'mode', 'plan_json', 'updated_at']] },
-    });
-  }
+  // drafts — プラン保存（下書き・完成・共有対応）
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: 'drafts!A1:J1',
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [['planId', 'clientFolderId', 'clientName', 'authorEmail', 'authorName', 'mode', 'status', 'plan_json', 'sharedWith', 'updatedAt']] },
+  });
 
   // Initialize history header
   if (sheetsToCreate.includes('history')) {
