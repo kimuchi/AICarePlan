@@ -16,6 +16,65 @@ import {
 
 const STEPS = ['利用者選択', '情報源選択', 'プラン編集・確認', 'エクスポート'];
 
+/** Autofilerの解析結果JSONから既存プラン表示用のGeneratedPlanを構築 */
+function buildExistingPlanFromJson(data: any): GeneratedPlan | null {
+  try {
+    // Autofiler JSON構造: documents.table_1, table_2, table_3 等
+    const docs = data.documents || data;
+    const t1 = docs.table_1 || docs.table1 || {};
+    const t2Items = docs.table_2 || docs.table2 || [];
+    const t3 = docs.table_3 || docs.table3 || {};
+
+    return {
+      id: 'EXISTING',
+      label: '既存プラン',
+      summary: '情報源から読み込んだ既存のケアプランです。',
+      table1: {
+        userWishes: t1.user_wishes || t1.userWishes || t1.利用者意向 || '',
+        familyWishes: t1.family_wishes || t1.familyWishes || t1.家族意向 || '',
+        assessmentResult: t1.assessment_result || t1.assessmentResult || t1.課題分析 || '',
+        committeeOpinion: t1.committee_opinion || t1.committeeOpinion || t1.審査会意見 || '特になし',
+        totalPolicy: t1.total_policy || t1.totalPolicy || t1.援助方針 || '',
+        livingSupportReason: t1.living_support_reason || t1.livingSupportReason || t1.生活援助理由 || '',
+      },
+      table2: Array.isArray(t2Items) ? t2Items.map((item: any) => ({
+        need: item.need || item.ニーズ || item.課題 || '',
+        goals: (item.goals || item.目標 || []).map((g: any) => ({
+          longGoal: g.long_goal || g.longGoal || g.長期目標 || '',
+          longPeriod: g.long_period || g.longPeriod || g.長期期間 || '',
+          shortGoal: g.short_goal || g.shortGoal || g.短期目標 || '',
+          shortPeriod: g.short_period || g.shortPeriod || g.短期期間 || '',
+          services: (g.services || g.サービス || []).map((sv: any) => ({
+            content: sv.content || sv.内容 || '',
+            insurance: sv.insurance || sv.保険 || '',
+            type: sv.type || sv.種別 || '',
+            provider: sv.provider || sv.事業者 || '',
+            frequency: sv.frequency || sv.頻度 || '',
+            period: sv.period || sv.期間 || '',
+          })),
+        })),
+      })) : [],
+      table3: {
+        schedule: (t3.schedule || t3.スケジュール || []).map((s: any) => ({
+          day: s.day || s.曜日 || '',
+          startHour: s.start_hour ?? s.startHour ?? 0,
+          startMin: s.start_min ?? s.startMin ?? 0,
+          endHour: s.end_hour ?? s.endHour ?? 0,
+          endMin: s.end_min ?? s.endMin ?? 0,
+          label: s.label || s.ラベル || '',
+        })),
+        dailyActivities: (t3.daily_activities || t3.dailyActivities || t3.日常活動 || []).map((a: any) => ({
+          time: a.time || a.時間 || '',
+          activity: a.activity || a.活動 || '',
+        })),
+        weeklyService: t3.weekly_service || t3.weeklyService || t3.週単位以外 || '',
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -32,6 +91,7 @@ export default function App() {
   const [managerNameOverride, setManagerNameOverride] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [plans, setPlans] = useState<GeneratedPlan[]>([]);
+  const [existingPlan, setExistingPlan] = useState<GeneratedPlan | null>(null);
   const [userProfile, setUserProfile] = useState<ExtractedUserProfile | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
 
@@ -75,6 +135,7 @@ export default function App() {
     setSelectedFacilityId('');
     setManagerNameOverride('');
     setPlans([]);
+    setExistingPlan(null);
     setUserProfile(null);
     setExportUrl(null);
   };
@@ -92,14 +153,26 @@ export default function App() {
         mimeTypes
       );
 
-      // Organize contents by category
+      // Organize contents by category + try to parse existing plan JSON
       const sourceContents: Record<string, string> = {};
+      let parsedExistingPlan: GeneratedPlan | null = null;
+
       for (const src of selectedSources) {
         const c = contents[src.id];
         if (!c) continue;
         const cat = src.category;
         sourceContents[cat] = (sourceContents[cat] || '') + '\n' + c.content;
+
+        // 既存ケアプランJSONの解析を試みる
+        if (cat === 'careplan' && c.type === 'json') {
+          try {
+            const parsed = JSON.parse(c.content);
+            // Autofilerの解析結果JSONからプラン構造を構築
+            parsedExistingPlan = buildExistingPlanFromJson(parsed);
+          } catch { /* not a structured plan JSON */ }
+        }
       }
+      setExistingPlan(parsedExistingPlan);
 
       // Build user info
       const userInfo = {
@@ -339,7 +412,7 @@ export default function App() {
         {step === 2 && (
           <PlanEdit
             plans={plans}
-            existingPlan={null}
+            existingPlan={existingPlan}
             userMeta={{
               name: userProfile?.name || selectedUser?.name || '',
               birthDate: userProfile?.birthDate || '',
