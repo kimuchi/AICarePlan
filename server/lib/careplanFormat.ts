@@ -38,6 +38,7 @@ function cellData(
     bold?: boolean;
     fontSize?: number;
     bgColor?: sheets_v4.Schema$Color;
+    fgColor?: sheets_v4.Schema$Color;
     hAlign?: string;
     vAlign?: string;
     wrap?: boolean;
@@ -50,6 +51,7 @@ function cellData(
         fontFamily: 'Noto Sans JP',
         fontSize: opts.fontSize ?? 10,
         bold: opts.bold ?? false,
+        ...(opts.fgColor ? { foregroundColor: opts.fgColor } : {}),
       },
       backgroundColor: opts.bgColor ?? WHITE,
       horizontalAlignment: (opts.hAlign ?? 'LEFT') as any,
@@ -118,7 +120,7 @@ export function buildTable1Requests(
 
   // Row 0: タイトル行 — 第1表 | 居宅サービス計画書(1)... | 作成年月日
   rowData.push({ values: [
-    cellData('第1表', { bold: true, fontSize: 12, bgColor: WHITE }),
+    cellData('第1表', { bold: true, fontSize: 12, bgColor: NAVY, fgColor: WHITE, hAlign: 'CENTER' }),
     cellData(title, { bold: true, fontSize: 13, hAlign: 'CENTER' }),
     cellData('', {}),
     cellData(`作成年月日 ${meta.createDate}`, { fontSize: 9, hAlign: 'RIGHT' }),
@@ -289,7 +291,7 @@ export function buildTable2Requests(
   // Row 0: Title — 第2表 + 正式表題 + 作成年月日
   rowData.push({
     values: [
-      cellData('第2表', { bold: true, fontSize: 11 }),
+      cellData('第2表', { bold: true, fontSize: 11, bgColor: NAVY, fgColor: WHITE, hAlign: 'CENTER' }),
       cellData(title, { bold: true, fontSize: 12, hAlign: 'CENTER' }),
       cellData('', {}),
       cellData('', {}),
@@ -426,7 +428,7 @@ export function buildTable3Requests(
   // Row 0: Title — 第3表 + 週間サービス計画表 + 作成年月日
   rowData.push({
     values: [
-      cellData('第3表', { bold: true, fontSize: 11 }),
+      cellData('第3表', { bold: true, fontSize: 11, bgColor: NAVY, fgColor: WHITE, hAlign: 'CENTER' }),
       cellData('週間サービス計画表', { bold: true, fontSize: 14, hAlign: 'CENTER' }),
       cellData('', {}),
       cellData('', {}),

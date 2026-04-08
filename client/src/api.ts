@@ -303,6 +303,12 @@ export interface SavedPlanSummary {
   mode: string;
   status: 'draft' | 'completed';
   updatedAt: string;
+  sharedWith?: string;
+  isSharedToMe?: boolean;
+}
+
+export async function getMyPlans(): Promise<{ plans: SavedPlanSummary[] }> {
+  return request('/api/plans/my');
 }
 
 export async function savePlan(params: {

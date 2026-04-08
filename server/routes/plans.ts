@@ -62,6 +62,47 @@ plansRouter.post('/save', async (req: Request, res: Response) => {
   }
 });
 
+// ── 自分に関連するプラン全件（作成 + 共有） ──
+
+plansRouter.get('/my', async (req: Request, res: Response) => {
+  try {
+    const token = getAccessToken(req);
+    if (!token) return res.status(401).json({ error: 'No access token' });
+    const sid = getSettingsId();
+    if (!sid) return res.json({ plans: [] });
+
+    const email = req.session.user?.email || '';
+    const rows = await getSheetData(sid, 'drafts!A:J', token);
+    if (!rows || rows.length <= 1) return res.json({ plans: [] });
+
+    const plans = rows.slice(1)
+      .filter(row => {
+        const isAuthor = row[3] === email;
+        const sharedWith = (row[8] || '').split(',').map((s: string) => s.trim().toLowerCase());
+        const isShared = sharedWith.includes(email.toLowerCase()) || sharedWith.includes('*');
+        return isAuthor || isShared;
+      })
+      .map(row => ({
+        planId: row[0] || '',
+        clientFolderId: row[1] || '',
+        clientName: row[2] || '',
+        authorEmail: row[3] || '',
+        authorName: row[4] || '',
+        mode: row[5] || '',
+        status: row[6] || 'draft',
+        sharedWith: row[8] || '',
+        updatedAt: row[9] || '',
+        isSharedToMe: row[3] !== email,
+      }))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+    res.json({ plans });
+  } catch (err: any) {
+    console.error('My plans error:', err.message);
+    res.status(500).json({ error: 'プラン一覧の取得に失敗しました' });
+  }
+});
+
 // ── 利用者のプラン一覧 ──
 
 plansRouter.get('/list/:clientFolderId', async (req: Request, res: Response) => {

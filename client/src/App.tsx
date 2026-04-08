@@ -363,6 +363,22 @@ export default function App() {
           }}
           onLogout={handleLogout}
           toast={toast}
+          onLoadPlan={async (planId) => {
+            try {
+              const data = await loadPlan(planId);
+              const planData = data.plan || {};
+              if (planData.plans) setPlans(planData.plans);
+              if (planData.existingPlan) setExistingPlan(planData.existingPlan);
+              if (planData.userProfile) setUserProfile(planData.userProfile);
+              if (data.mode) setMode(data.mode as BusinessMode);
+              setCurrentPlanId(planId);
+              setCurrentView('create');
+              setStep(2);
+              toast('プランを読み込みました');
+            } catch (err: any) {
+              toast(`読み込みエラー: ${err.message}`);
+            }
+          }}
         />
       </>
     );

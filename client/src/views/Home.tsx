@@ -1,65 +1,39 @@
 import React, { useEffect, useState } from 'react';
 import { S } from '../styles';
-import { getHistory, type SessionUser, type SavedPlanSummary } from '../api';
+import { getMyPlans, getHistory, type SessionUser, type SavedPlanSummary } from '../api';
 
 interface Props {
   user: SessionUser;
   onNavigate: (view: string) => void;
   onLogout: () => void;
   toast: (msg: string) => void;
+  onLoadPlan?: (planId: string) => void;
 }
 
-interface HistoryItem {
-  userId: string;
-  userName: string;
-  mode: string;
-  exportedUrl: string;
-  exportedAt: string;
-}
-
-export default function Home({ user, onNavigate, onLogout, toast }: Props) {
-  const [recentPlans, setRecentPlans] = useState<SavedPlanSummary[]>([]);
+export default function Home({ user, onNavigate, onLogout, toast, onLoadPlan }: Props) {
+  const [myPlans, setMyPlans] = useState<SavedPlanSummary[]>([]);
   const [exportLinks, setExportLinks] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 全利用者の保存済みプランを取得するには drafts シート全体を見る必要がある
-    // → settings/history からエクスポートリンクを取得
-    import('../api').then(api => {
-      // 保存済みプラン一覧は /api/plans/list に clientFolderId が必要なので
-      // ここではエクスポート履歴を取得してリンクマップを作る
-      api.getHistory().then(r => {
+    setLoading(true);
+    Promise.all([
+      getMyPlans().then(r => setMyPlans(r.plans)),
+      getHistory().then(r => {
         const links: Record<string, string> = {};
         for (const h of r.history) {
-          // userName をキーにして最新のリンクを保持
           if (h.exportedUrl) {
             const key = `${h.userName}_${h.mode}`;
             if (!links[key]) links[key] = h.exportedUrl;
           }
         }
         setExportLinks(links);
-
-        // 履歴を SavedPlanSummary 風に変換して表示
-        const seen = new Set<string>();
-        const plans: SavedPlanSummary[] = [];
-        for (const h of r.history) {
-          const key = `${h.userName}_${h.mode}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          plans.push({
-            planId: '',
-            clientFolderId: '',
-            clientName: h.userName,
-            authorEmail: '',
-            authorName: h.userId ? '' : '',
-            mode: h.mode,
-            status: 'completed',
-            updatedAt: h.exportedAt,
-          });
-        }
-        setRecentPlans(plans.slice(0, 12));
-      }).catch(() => {});
-    });
+      }).catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
+
+  const sharedPlans = myPlans.filter(p => p.isSharedToMe);
+  const ownPlans = myPlans.filter(p => !p.isSharedToMe);
 
   return (
     <div style={S.root}>
@@ -84,57 +58,74 @@ export default function Home({ user, onNavigate, onLogout, toast }: Props) {
           <span style={S.heroArrow}>&rarr;</span>
         </div>
 
-        {recentPlans.length > 0 && (
+        {loading && <p style={{ textAlign: 'center', color: '#64748b', padding: 20 }}>読み込み中...</p>}
+
+        {/* 共有されたプラン */}
+        {sharedPlans.length > 0 && (
           <>
-            <h3 style={S.sectionTitle}>最近のケアプラン</h3>
+            <h3 style={{ ...S.sectionTitle, color: '#7c3aed' }}>共有されたプラン（{sharedPlans.length}件）</h3>
             <div style={S.recentGrid}>
-              {recentPlans.map((p, i) => {
-                const exportUrl = exportLinks[`${p.clientName}_${p.mode}`];
-                return (
-                  <div key={i} style={S.recentCard}>
-                    <div style={S.recentCardHeader}>
-                      <span style={S.avatar}>{p.clientName?.[0] || '?'}</span>
-                      <div>
-                        <div style={S.recentName}>{p.clientName}</div>
-                        <div style={S.recentMeta}>{p.mode === 'shoki' ? '小規模多機能' : '居宅介護支援'}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                        background: p.status === 'draft' ? '#fef3c7' : '#dcfce7',
-                        color: p.status === 'draft' ? '#92400e' : '#166534',
-                      }}>
-                        {p.status === 'draft' ? '下書き' : '作成済み'}
-                      </span>
-                      <span style={{ fontSize: 11, color: '#94a3b8' }}>{p.updatedAt?.split('T')[0]}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <button style={S.smallBtn} onClick={() => onNavigate('create')}>編集</button>
-                      {exportUrl && (
-                        <a
-                          href={exportUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            ...S.smallBtn,
-                            display: 'inline-block',
-                            textDecoration: 'none',
-                            background: '#059669',
-                          }}
-                          onClick={e => e.stopPropagation()}
-                        >
-                          スプレッドシート
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              {sharedPlans.map(p => renderPlanCard(p, true))}
+            </div>
+          </>
+        )}
+
+        {/* 自分のプラン */}
+        {ownPlans.length > 0 && (
+          <>
+            <h3 style={S.sectionTitle}>マイプラン（{ownPlans.length}件）</h3>
+            <div style={S.recentGrid}>
+              {ownPlans.map(p => renderPlanCard(p, false))}
             </div>
           </>
         )}
       </main>
     </div>
   );
+
+  function renderPlanCard(p: SavedPlanSummary, isShared: boolean) {
+    const exportUrl = exportLinks[`${p.clientName}_${p.mode}`];
+    return (
+      <div key={p.planId} style={{ ...S.recentCard, borderLeft: isShared ? '4px solid #7c3aed' : undefined }}>
+        <div style={S.recentCardHeader}>
+          <span style={S.avatar}>{p.clientName?.[0] || '?'}</span>
+          <div>
+            <div style={S.recentName}>{p.clientName}</div>
+            <div style={S.recentMeta}>{p.mode === 'shoki' ? '小規模多機能' : '居宅介護支援'}</div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+            background: p.status === 'draft' ? '#fef3c7' : '#dcfce7',
+            color: p.status === 'draft' ? '#92400e' : '#166534',
+          }}>
+            {p.status === 'draft' ? '下書き' : '作成済み'}
+          </span>
+          {isShared && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: '#ede9fe', color: '#7c3aed' }}>
+              {p.authorName || p.authorEmail} から共有
+            </span>
+          )}
+          <span style={{ fontSize: 11, color: '#94a3b8' }}>{p.updatedAt?.split('T')[0]}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button style={S.smallBtn} onClick={() => onLoadPlan ? onLoadPlan(p.planId) : onNavigate('create')}>
+            開く
+          </button>
+          {exportUrl && (
+            <a
+              href={exportUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...S.smallBtn, display: 'inline-block', textDecoration: 'none', background: '#059669' }}
+              onClick={e => e.stopPropagation()}
+            >
+              スプレッドシート
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  }
 }
