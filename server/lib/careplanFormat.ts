@@ -126,13 +126,26 @@ export function buildTable1Requests(
   requests.push(mergeReq(sheetId, row, row + 1, 1, 3));
   row++;
 
-  // Row 1: 初回・継続 | 認定済・申請中
+  // Row 1: 初回・継続 | 認定済・申請中 — 罫線付きボックスで表示
   rowData.push({ values: [
     cellData('', {}),
     cellData('', {}),
-    cellData('初回 ・ 継続', { fontSize: 9, hAlign: 'CENTER', bold: true }),
-    cellData('認定済 ・ 申請中', { fontSize: 9, hAlign: 'CENTER', bold: true }),
+    cellData('初回 ・ 継続', { fontSize: 9, hAlign: 'CENTER', bold: true, bgColor: LIGHT_GRAY }),
+    cellData('認定済 ・ 申請中', { fontSize: 9, hAlign: 'CENTER', bold: true, bgColor: LIGHT_GRAY }),
   ]});
+  // 枠線を個別に設定
+  requests.push({
+    updateBorders: {
+      range: { sheetId, startRowIndex: row, endRowIndex: row + 1, startColumnIndex: 2, endColumnIndex: 3 },
+      top: thickBorder(), bottom: thickBorder(), left: thickBorder(), right: thickBorder(),
+    },
+  });
+  requests.push({
+    updateBorders: {
+      range: { sheetId, startRowIndex: row, endRowIndex: row + 1, startColumnIndex: 3, endColumnIndex: 4 },
+      top: thickBorder(), bottom: thickBorder(), left: thickBorder(), right: thickBorder(),
+    },
+  });
   row++;
 
   // Row 2: 利用者名 | 値 | 生年月日 | 値
@@ -273,13 +286,13 @@ export function buildTable2Requests(
   const colWidths = [160, 130, 70, 130, 70, 200, 30, 130, 120, 60, 70];
   colWidths.forEach((w, i) => requests.push(colWidth(sheetId, i, w)));
 
-  // Row 0: Title
+  // Row 0: Title — 第2表 + 正式表題 + 作成年月日
   rowData.push({
     values: [
       cellData('第2表', { bold: true, fontSize: 11 }),
+      cellData(title, { bold: true, fontSize: 12, hAlign: 'CENTER' }),
       cellData('', {}),
       cellData('', {}),
-      cellData(title, { bold: true, fontSize: 14, hAlign: 'CENTER' }),
       cellData('', {}),
       cellData('', {}),
       cellData('', {}),
@@ -289,7 +302,8 @@ export function buildTable2Requests(
       cellData('', {}),
     ],
   });
-  requests.push(mergeReq(sheetId, 0, 1, 2, 9));
+  requests.push(mergeReq(sheetId, 0, 1, 1, 9));
+  requests.push(mergeReq(sheetId, 0, 1, 9, 11));
 
   // Row 1: User name
   rowData.push({
@@ -409,13 +423,13 @@ export function buildTable3Requests(
   const colWidths = [40, 55, 100, 100, 100, 100, 100, 100, 100, 180];
   colWidths.forEach((w, i) => requests.push(colWidth(sheetId, i, w)));
 
-  // Row 0: Title
+  // Row 0: Title — 第3表 + 週間サービス計画表 + 作成年月日
   rowData.push({
     values: [
       cellData('第3表', { bold: true, fontSize: 11 }),
-      cellData('', {}),
-      cellData('', {}),
       cellData('週間サービス計画表', { bold: true, fontSize: 14, hAlign: 'CENTER' }),
+      cellData('', {}),
+      cellData('', {}),
       cellData('', {}),
       cellData('', {}),
       cellData('', {}),
@@ -424,7 +438,8 @@ export function buildTable3Requests(
       cellData('', {}),
     ],
   });
-  requests.push(mergeReq(sheetId, 0, 1, 2, 8));
+  requests.push(mergeReq(sheetId, 0, 1, 1, 8));
+  requests.push(mergeReq(sheetId, 0, 1, 8, 10));
 
   // Row 1: User name
   rowData.push({

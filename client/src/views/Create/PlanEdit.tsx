@@ -30,7 +30,6 @@ interface Props {
   mode: BusinessMode;
   onSaveDraft: (plan: GeneratedPlan) => void;
   onExport: (plan: GeneratedPlan) => void;
-  onProceedExport: () => void;
   currentPlanId?: string | null;
   onShare?: (planId: string, emails: string) => void;
 }
@@ -43,7 +42,7 @@ const PLAN_COLORS: Record<string, string> = {
 
 export default function PlanEdit({
   plans, existingPlan, userMeta, planMeta, mode,
-  onSaveDraft, onExport, onProceedExport, currentPlanId, onShare,
+  onSaveDraft, onExport, currentPlanId, onShare,
 }: Props) {
   const [activePlanId, setActivePlanId] = useState(
     plans.length > 0 ? plans[0].id : (existingPlan ? 'EXISTING' : '')
@@ -199,20 +198,17 @@ export default function PlanEdit({
       )}
 
       <div style={S.stepActions}>
-        <button style={S.secondaryBtn} onClick={() => onSaveDraft(activePlan)}>下書き保存</button>
-        {currentPlanId && onShare && (
-          <button style={S.secondaryBtn} onClick={() => setShowShareDialog(!showShareDialog)}>
-            共有
-          </button>
-        )}
+        <button style={S.secondaryBtn} onClick={() => onSaveDraft(activePlan)}>
+          保存
+        </button>
+        <button style={S.secondaryBtn} onClick={() => setShowShareDialog(!showShareDialog)}>
+          共有
+        </button>
         <button
           style={{ ...S.primaryBtn, background: '#0f7c3f' }}
           onClick={() => onExport(activePlan)}
         >
           Googleスプレッドシートにエクスポート
-        </button>
-        <button style={S.primaryBtn} onClick={onProceedExport}>
-          エクスポート画面へ &rarr;
         </button>
       </div>
     </div>

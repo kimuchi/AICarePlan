@@ -15,7 +15,7 @@ import {
   type SavedPlanSummary,
 } from './api';
 
-const STEPS = ['利用者選択', '情報源選択', 'プラン編集・確認', 'エクスポート'];
+const STEPS = ['利用者選択', '情報源選択', 'プラン編集・エクスポート'];
 
 /** Autofilerの解析結果JSONから既存プラン表示用のGeneratedPlanを構築 */
 function buildExistingPlanFromJson(data: any): GeneratedPlan | null {
@@ -472,7 +472,7 @@ export default function App() {
         )}
 
         {/* Step 2: Plan edit */}
-        {step === 2 && (
+        {step === 2 && (<>
           <PlanEdit
             plans={plans}
             existingPlan={existingPlan}
@@ -497,7 +497,6 @@ export default function App() {
             mode={mode}
             onSaveDraft={handleSaveDraft}
             onExport={handleExport}
-            onProceedExport={() => setStep(3)}
             currentPlanId={currentPlanId}
             onShare={async (planId, emails) => {
               try {
@@ -509,53 +508,20 @@ export default function App() {
               }
             }}
           />
-        )}
 
-        {/* Step 3: Export */}
-        {step === 3 && (
-          <div>
-            <h2 style={S.stepTitle}>エクスポート</h2>
-            <p style={S.stepDesc}>
-              選択中のプラン: <strong>{plans[plans.length - 1]?.label || ''}</strong>
-            </p>
-
-            {exportUrl && (
-              <div style={{
-                padding: '16px 20px',
-                background: '#dcfce7',
-                borderRadius: 12,
-                border: '1px solid #86efac',
-                marginBottom: 20,
-                fontSize: 14,
-              }}>
-                エクスポート完了:{' '}
-                <a href={exportUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#059669', fontWeight: 600 }}>
-                  スプレッドシートを開く
-                </a>
-              </div>
-            )}
-
-            <div style={S.exportGrid}>
-              <div style={S.exportCard}>
-                <div style={S.exportIcon}>📊</div>
-                <h3 style={S.exportTitle}>Googleスプレッドシート</h3>
-                <p style={S.exportDesc}>Googleドライブに第1表〜第3表をシート別に出力します。</p>
-                <button
-                  style={{ ...S.primaryBtn, width: '100%' }}
-                  onClick={() => {
-                    const plan = plans[plans.length - 1];
-                    if (plan) handleExport(plan);
-                  }}
-                >
-                  エクスポート
-                </button>
-              </div>
+          {/* エクスポート完了通知 */}
+          {exportUrl && (
+            <div style={{
+              marginTop: 16, padding: '16px 20px',
+              background: '#dcfce7', borderRadius: 12, border: '1px solid #86efac', fontSize: 14,
+            }}>
+              エクスポート完了:{' '}
+              <a href={exportUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#059669', fontWeight: 600 }}>
+                スプレッドシートを開く
+              </a>
             </div>
-            <div style={S.stepActions}>
-              <button style={S.secondaryBtn} onClick={() => setCurrentView('home')}>ホームに戻る</button>
-            </div>
-          </div>
-        )}
+          )}
+        </>)}
       </main>
     </div>
   );
