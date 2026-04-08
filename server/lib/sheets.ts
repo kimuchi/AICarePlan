@@ -202,14 +202,30 @@ const DEFAULT_PROMPTS = [
 【既存ケアプラン】{既存ケアプラン}
 
 ■ 出力ルール
-3案（第1・2表と対応するA案・B案・C案）を作成すること。
+3案（A案・B案・C案）を作成すること。
 
-各案について:
-- 曜日ごとのサービス利用予定を時間帯で配置
-- 訪問診療、訪問看護、デイサービス等の外部サービスも組み込む
-- 主な日常生活上の活動（起床、食事、就寝）を時系列で記載
-- 週単位以外のサービス（月1回の訪問診療等）を明記
-- 利用者の生活リズムに無理のないスケジュールにする`,
+【重要】scheduleには必ず具体的なサービス予定を入れてください。空配列は不可です。
+第2表のサービス内容に基づき、各曜日にどのサービスが入るかを決定してください。
+
+scheduleの各エントリ:
+- day: "mon","tue","wed","thu","fri","sat","sun" のいずれか
+- startHour/startMin: 開始時刻（整数）
+- endHour/endMin: 終了時刻（整数）
+- label: サービス名（例: "デイサービス", "訪問介護", "訪問看護", "訪問診療"）
+
+例: デイサービス週3回（月水金 9:30-15:30）、訪問介護週2回（火木 10:00-11:00）の場合:
+schedule: [
+  {"day":"mon","startHour":9,"startMin":30,"endHour":15,"endMin":30,"label":"デイサービス"},
+  {"day":"tue","startHour":10,"startMin":0,"endHour":11,"endMin":0,"label":"訪問介護"},
+  {"day":"wed","startHour":9,"startMin":30,"endHour":15,"endMin":30,"label":"デイサービス"},
+  {"day":"thu","startHour":10,"startMin":0,"endHour":11,"endMin":0,"label":"訪問介護"},
+  {"day":"fri","startHour":9,"startMin":30,"endHour":15,"endMin":30,"label":"デイサービス"}
+]
+
+dailyActivities: 主な日常活動（起床・食事・就寝等）を時刻付きで。
+例: [{"time":"7:00","activity":"起床・洗面"},{"time":"12:00","activity":"昼食"},{"time":"18:00","activity":"夕食"},{"time":"21:00","activity":"就寝"}]
+
+weeklyService: 週単位以外のサービス（月1回の訪問診療等）を文字列で記載。`,
   },
   // ── 小規模多機能型居宅介護 ──
   {
@@ -310,15 +326,33 @@ const DEFAULT_PROMPTS = [
 【既存ケアプラン】{既存ケアプラン}
 
 ■ 出力ルール
-3案（第1・2表と対応するA案・B案・C案）を作成すること。
+3案（A案・B案・C案）を作成すること。
 
-小多機の利用予定表として:
-- 「通い」「訪問」「泊まり」を曜日・時間帯ごとに明確に配置
-- 通いは日中（概ね9:30〜15:30）、訪問は短時間（概ね30分〜1時間）、泊まりは夕方〜翌朝
-- 「訪問看護」「訪問診療」「福祉用具」の予定も備考として併記
-- 主な日常生活上の活動（起床・朝食・昼食・夕食・就寝）を時系列で記載
-- 週単位以外のサービス（月1回の訪問診療、月2回の訪問看護等）を明記
-- 利用者の生活リズムに合わせた無理のないスケジュールにする`,
+【重要】scheduleには必ず具体的なサービス予定を入れてください。空配列は不可です。
+第2表の「通い」「訪問」「泊まり」サービスに基づき、各曜日にどれが入るかを決定してください。
+
+scheduleの各エントリ:
+- day: "mon","tue","wed","thu","fri","sat","sun" のいずれか
+- startHour/startMin: 開始時刻（整数）
+- endHour/endMin: 終了時刻（整数）
+- label: サービス名（"通い", "訪問", "泊まり", "訪問看護", "訪問Ⅰ2" 等）
+
+例: 通い週3回＋訪問週2回＋泊まり週1回の場合:
+schedule: [
+  {"day":"mon","startHour":9,"startMin":30,"endHour":15,"endMin":30,"label":"通い"},
+  {"day":"tue","startHour":11,"startMin":0,"endHour":11,"endMin":30,"label":"訪問"},
+  {"day":"wed","startHour":9,"startMin":30,"endHour":15,"endMin":30,"label":"通い"},
+  {"day":"thu","startHour":11,"startMin":0,"endHour":11,"endMin":30,"label":"訪問"},
+  {"day":"fri","startHour":9,"startMin":30,"endHour":15,"endMin":30,"label":"通い"},
+  {"day":"wed","startHour":18,"startMin":0,"endHour":23,"endMin":59,"label":"泊まり"},
+  {"day":"thu","startHour":0,"startMin":0,"endHour":9,"endMin":0,"label":"泊まり"}
+]
+
+dailyActivities: 主な日常活動を時刻付きで記載。
+例: [{"time":"4:30","activity":"起床"},{"time":"6:30","activity":"朝食"},{"time":"12:00","activity":"昼食"},{"time":"18:00","activity":"夕食"},{"time":"20:30","activity":"就寝"}]
+
+weeklyService: 週単位以外のサービス。
+例: "訪問看護（月2回：健康状態の確認・服薬指導）、訪問診療（月1回：定期診察）、福祉用具貸与（手すり・継続利用）"`,
   },
 ];
 

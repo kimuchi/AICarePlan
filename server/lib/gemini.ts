@@ -95,32 +95,34 @@ const RESPONSE_SCHEMA_TABLE3 = {
       items: {
         type: 'object' as const,
         properties: {
-          id: { type: 'string' as const },
+          id: { type: 'string' as const, description: 'P1, P2, P3' },
           table3: {
             type: 'object' as const,
             properties: {
               schedule: {
                 type: 'array' as const,
+                description: '週間サービス予定。各曜日・時間帯のサービスを配列で。必ず1件以上',
                 items: {
                   type: 'object' as const,
                   properties: {
-                    day: { type: 'string' as const },
-                    startHour: { type: 'number' as const },
-                    startMin: { type: 'number' as const },
-                    endHour: { type: 'number' as const },
-                    endMin: { type: 'number' as const },
-                    label: { type: 'string' as const },
+                    day: { type: 'string' as const, description: '曜日: mon, tue, wed, thu, fri, sat, sun のいずれか' },
+                    startHour: { type: 'number' as const, description: '開始時（0-23の整数）例: 9' },
+                    startMin: { type: 'number' as const, description: '開始分（0-59の整数）例: 30' },
+                    endHour: { type: 'number' as const, description: '終了時（0-23の整数）例: 15' },
+                    endMin: { type: 'number' as const, description: '終了分（0-59の整数）例: 30' },
+                    label: { type: 'string' as const, description: 'サービス名。例: 通い, 訪問, 泊まり, 訪問看護, 訪問診療, デイサービス' },
                   },
                   required: ['day', 'startHour', 'startMin', 'endHour', 'endMin', 'label'],
                 },
               },
               dailyActivities: {
                 type: 'array' as const,
+                description: '主な日常生活上の活動（起床、食事、就寝等）',
                 items: {
                   type: 'object' as const,
                   properties: {
-                    time: { type: 'string' as const },
-                    activity: { type: 'string' as const },
+                    time: { type: 'string' as const, description: '時刻（HH:MM形式）例: 7:00' },
+                    activity: { type: 'string' as const, description: '活動内容。例: 起床・洗面' },
                   },
                   required: ['time', 'activity'],
                 },
