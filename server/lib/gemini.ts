@@ -145,24 +145,67 @@ function getGenAI(): GoogleGenAI {
   return new GoogleGenAI({ apiKey });
 }
 
+/**
+ * Gemini API呼び出しをリトライ付きで実行する。
+ * 503 (高負荷) の場合は指数バックオフで最大3回リトライ。
+ * メインモデルが全リトライ失敗したらフォールバックモデルで1回試行。
+ */
+async function callWithRetry<T>(
+  fn: (model: string) => Promise<T>,
+  primaryModel: string,
+  maxRetries: number = 3
+): Promise<T> {
+  const fallbackModel = primaryModel.includes('flash')
+    ? 'gemini-2.0-flash'
+    : 'gemini-2.0-flash';
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn(primaryModel);
+    } catch (err: any) {
+      const status = err?.status || err?.message?.match(/"code":(\d+)/)?.[1];
+      const is503 = String(status) === '503' || err?.message?.includes('503') || err?.message?.includes('high demand');
+
+      if (!is503 || attempt === maxRetries) {
+        // 503以外のエラー or リトライ上限 → フォールバック試行
+        if (is503 && fallbackModel !== primaryModel) {
+          console.warn(`Model ${primaryModel} unavailable after ${maxRetries + 1} attempts, falling back to ${fallbackModel}`);
+          try {
+            return await fn(fallbackModel);
+          } catch {
+            throw err; // フォールバックも失敗
+          }
+        }
+        throw err;
+      }
+
+      const delay = Math.pow(2, attempt) * 2000 + Math.random() * 1000; // 2s, 4s, 8s + jitter
+      console.warn(`Gemini 503, retry ${attempt + 1}/${maxRetries} in ${Math.round(delay / 1000)}s...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Unreachable');
+}
+
 /** Call Gemini with structured output for Table 1 */
 export async function generateTable1(
   model: string,
   prompt: string
 ): Promise<Array<{ id: string; label: string; summary: string; table1: Table1Data }>> {
-  const ai = getGenAI();
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: RESPONSE_SCHEMA_TABLE1 as any,
-      temperature: 0.8,
-    },
-  });
-  const text = response.text || '{"plans":[]}';
-  const parsed = JSON.parse(text);
-  return parsed.plans;
+  return callWithRetry(async (m) => {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: m,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: RESPONSE_SCHEMA_TABLE1 as any,
+        temperature: 0.8,
+      },
+    });
+    const text = response.text || '{"plans":[]}';
+    return JSON.parse(text).plans;
+  }, model);
 }
 
 /** Call Gemini with structured output for Table 2 */
@@ -170,19 +213,20 @@ export async function generateTable2(
   model: string,
   prompt: string
 ): Promise<Array<{ id: string; table2: NeedItem[] }>> {
-  const ai = getGenAI();
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: RESPONSE_SCHEMA_TABLE2 as any,
-      temperature: 0.8,
-    },
-  });
-  const text = response.text || '{"plans":[]}';
-  const parsed = JSON.parse(text);
-  return parsed.plans;
+  return callWithRetry(async (m) => {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: m,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: RESPONSE_SCHEMA_TABLE2 as any,
+        temperature: 0.8,
+      },
+    });
+    const text = response.text || '{"plans":[]}';
+    return JSON.parse(text).plans;
+  }, model);
 }
 
 /** Call Gemini with structured output for Table 3 */
@@ -190,19 +234,20 @@ export async function generateTable3(
   model: string,
   prompt: string
 ): Promise<Array<{ id: string; table3: Table3Data }>> {
-  const ai = getGenAI();
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: RESPONSE_SCHEMA_TABLE3 as any,
-      temperature: 0.8,
-    },
-  });
-  const text = response.text || '{"plans":[]}';
-  const parsed = JSON.parse(text);
-  return parsed.plans;
+  return callWithRetry(async (m) => {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: m,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: RESPONSE_SCHEMA_TABLE3 as any,
+        temperature: 0.8,
+      },
+    });
+    const text = response.text || '{"plans":[]}';
+    return JSON.parse(text).plans;
+  }, model);
 }
 
 /** Summarize a long document using Gemini */
@@ -211,16 +256,15 @@ export async function summarizeDocument(
   content: string,
   docType: string
 ): Promise<string> {
-  const ai = getGenAI();
-  const response = await ai.models.generateContent({
-    model,
-    contents: `以下の${docType}の内容を、ケアプラン作成に必要な情報を中心に簡潔に要約してください。要約は日本語で、箇条書きで記載してください。\n\n${content}`,
-    config: {
-      temperature: 0.3,
-      maxOutputTokens: 2048,
-    },
-  });
-  return response.text || '';
+  return callWithRetry(async (m) => {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: m,
+      contents: `以下の${docType}の内容を、ケアプラン作成に必要な情報を中心に簡潔に要約してください。要約は日本語で、箇条書きで記載してください。\n\n${content}`,
+      config: { temperature: 0.3, maxOutputTokens: 2048 },
+    });
+    return response.text || '';
+  }, model);
 }
 
 /** Analyze a PDF via Gemini (base64 input) */
@@ -230,31 +274,20 @@ export async function analyzePdf(
   mimeType: string,
   docType: string
 ): Promise<string> {
-  const ai = getGenAI();
-  const response = await ai.models.generateContent({
-    model,
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            inlineData: {
-              mimeType,
-              data: base64Data,
-            },
-          },
-          {
-            text: `この${docType}の内容を、ケアプラン作成に必要な情報を中心にJSON形式で構造化して出力してください。`,
-          },
-        ],
-      },
-    ],
-    config: {
-      temperature: 0.3,
-      maxOutputTokens: 4096,
-    },
-  });
-  return response.text || '';
+  return callWithRetry(async (m) => {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: m,
+      contents: [
+        { role: 'user', parts: [
+          { inlineData: { mimeType, data: base64Data } },
+          { text: `この${docType}の内容を、ケアプラン作成に必要な情報を中心にJSON形式で構造化して出力してください。` },
+        ]},
+      ],
+      config: { temperature: 0.3, maxOutputTokens: 4096 },
+    });
+    return response.text || '';
+  }, model);
 }
 
 /** 利用者プロフィール抽出用スキーマ */
@@ -297,27 +330,25 @@ export async function extractUserProfile(
   model: string,
   sourceTexts: string
 ): Promise<ExtractedUserProfile> {
-  const ai = getGenAI();
-  const response = await ai.models.generateContent({
-    model,
-    contents: `以下の情報源から、利用者（介護サービスの利用者本人）の基本情報を抽出してください。
+  const empty: ExtractedUserProfile = { name: '', furigana: '', birthDate: '', age: '', address: '', careLevel: '', insuranceNo: '', certDate: '', certPeriodStart: '', certPeriodEnd: '', firstCreateDate: '' };
+  return callWithRetry(async (m) => {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: m,
+      contents: `以下の情報源から、利用者（介護サービスの利用者本人）の基本情報を抽出してください。
 見つからない項目は空文字にしてください。日付は和暦（令和○年○月○日、昭和○年○月○日など）で記載してください。
 
 【情報源】
 ${sourceTexts}`,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: USER_PROFILE_SCHEMA as any,
-      temperature: 0.1,
-      maxOutputTokens: 1024,
-    },
-  });
-  const text = response.text || '{}';
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { name: '', furigana: '', birthDate: '', age: '', address: '', careLevel: '', insuranceNo: '', certDate: '', certPeriodStart: '', certPeriodEnd: '', firstCreateDate: '' };
-  }
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: USER_PROFILE_SCHEMA as any,
+        temperature: 0.1,
+        maxOutputTokens: 1024,
+      },
+    });
+    try { return JSON.parse(response.text || '{}'); } catch { return empty; }
+  }, model);
 }
 
 /** 既存ケアプランの全項目を構造化抽出するスキーマ */
@@ -414,8 +445,6 @@ export async function extractExistingPlan(
   base64Data?: string,
   mimeType?: string
 ): Promise<any> {
-  const ai = getGenAI();
-
   const prompt = `あなたは居宅サービス計画書（ケアプラン）の読取専門AIです。
 以下の文書から、居宅サービス計画書の第1表・第2表・第3表の全項目を正確に構造化してください。
 
@@ -428,31 +457,25 @@ export async function extractExistingPlan(
 
 ${isPdf ? '' : '【文書内容】\n' + content}`;
 
-  const contents = isPdf && base64Data
-    ? [{
-        role: 'user' as const,
-        parts: [
-          { inlineData: { mimeType: mimeType || 'application/pdf', data: base64Data } },
-          { text: prompt },
-        ],
-      }]
+  const contentsPayload = isPdf && base64Data
+    ? [{ role: 'user' as const, parts: [
+        { inlineData: { mimeType: mimeType || 'application/pdf', data: base64Data } },
+        { text: prompt },
+      ]}]
     : prompt + '\n\n' + content;
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: contents as any,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: EXISTING_PLAN_SCHEMA as any,
-      temperature: 0.1,
-      maxOutputTokens: 8192,
-    },
-  });
-
-  const text = response.text || '{}';
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
+  return callWithRetry(async (m) => {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: m,
+      contents: contentsPayload as any,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: EXISTING_PLAN_SCHEMA as any,
+        temperature: 0.1,
+        maxOutputTokens: 8192,
+      },
+    });
+    try { return JSON.parse(response.text || '{}'); } catch { return null; }
+  }, model);
 }
