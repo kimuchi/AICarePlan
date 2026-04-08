@@ -32,7 +32,7 @@ interface Props {
   onExport: (plan: GeneratedPlan) => void;
   onProceedExport: () => void;
   currentPlanId?: string | null;
-  onShare?: (planId: string) => void;
+  onShare?: (planId: string, emails: string) => void;
 }
 
 const PLAN_COLORS: Record<string, string> = {
@@ -45,9 +45,13 @@ export default function PlanEdit({
   plans, existingPlan, userMeta, planMeta, mode,
   onSaveDraft, onExport, onProceedExport, currentPlanId, onShare,
 }: Props) {
-  const [activePlanId, setActivePlanId] = useState(plans.length > 0 ? plans[plans.length - 1].id : 'EXISTING');
+  const [activePlanId, setActivePlanId] = useState(
+    plans.length > 0 ? plans[0].id : (existingPlan ? 'EXISTING' : '')
+  );
   const [activeTable, setActiveTable] = useState<'table1' | 'table2' | 'table3'>('table1');
   const [editedPlans, setEditedPlans] = useState<Record<string, GeneratedPlan>>({});
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [shareEmails, setShareEmails] = useState('');
 
   const getActivePlan = (): GeneratedPlan | null => {
     if (activePlanId === 'EXISTING') return existingPlan;
@@ -161,10 +165,43 @@ export default function PlanEdit({
         />
       )}
 
+      {/* Share dialog */}
+      {showShareDialog && currentPlanId && onShare && (
+        <div style={{
+          marginTop: 16, padding: '16px 20px', background: '#f0f7ff',
+          borderRadius: 12, border: '1px solid #bfdbfe',
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#0f2942', marginBottom: 8 }}>プランを共有</div>
+          <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
+            共有先のメールアドレスを入力してください（カンマ区切りで複数可、全員共有は * ）
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              style={{ ...S.input, flex: 1 }}
+              placeholder="user@example.com, user2@example.com"
+              value={shareEmails}
+              onChange={e => setShareEmails(e.target.value)}
+            />
+            <button
+              style={{ ...S.primaryBtn, padding: '8px 16px', fontSize: 13 }}
+              onClick={() => { onShare(currentPlanId, shareEmails); setShowShareDialog(false); setShareEmails(''); }}
+            >
+              共有
+            </button>
+            <button
+              style={{ ...S.secondaryBtn, padding: '8px 12px', fontSize: 13 }}
+              onClick={() => setShowShareDialog(false)}
+            >
+              閉じる
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={S.stepActions}>
         <button style={S.secondaryBtn} onClick={() => onSaveDraft(activePlan)}>下書き保存</button>
         {currentPlanId && onShare && (
-          <button style={S.secondaryBtn} onClick={() => onShare(currentPlanId)}>
+          <button style={S.secondaryBtn} onClick={() => setShowShareDialog(!showShareDialog)}>
             共有
           </button>
         )}

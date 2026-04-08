@@ -499,16 +499,13 @@ export default function App() {
             onExport={handleExport}
             onProceedExport={() => setStep(3)}
             currentPlanId={currentPlanId}
-            onShare={async (planId) => {
-              const emails = prompt('共有先のメールアドレスを入力（カンマ区切り、全員共有は * ）');
-              if (emails !== null) {
-                try {
-                  const { sharePlan } = await import('./api');
-                  await sharePlan(planId, emails);
-                  toast('共有設定を保存しました');
-                } catch (err: any) {
-                  toast(`共有エラー: ${err.message}`);
-                }
+            onShare={async (planId, emails) => {
+              try {
+                const { sharePlan } = await import('./api');
+                await sharePlan(planId, emails);
+                toast('共有設定を保存しました');
+              } catch (err: any) {
+                toast(`共有エラー: ${err.message}`);
               }
             }}
           />

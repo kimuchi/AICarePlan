@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { S } from '../styles';
-import { getHistory } from '../api';
-import type { SessionUser } from '../api';
+import { getHistory, type SessionUser, type SavedPlanSummary } from '../api';
 
 interface Props {
   user: SessionUser;
@@ -19,10 +18,47 @@ interface HistoryItem {
 }
 
 export default function Home({ user, onNavigate, onLogout, toast }: Props) {
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [recentPlans, setRecentPlans] = useState<SavedPlanSummary[]>([]);
+  const [exportLinks, setExportLinks] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    getHistory().then(r => setHistory(r.history.slice(0, 6))).catch(() => {});
+    // 全利用者の保存済みプランを取得するには drafts シート全体を見る必要がある
+    // → settings/history からエクスポートリンクを取得
+    import('../api').then(api => {
+      // 保存済みプラン一覧は /api/plans/list に clientFolderId が必要なので
+      // ここではエクスポート履歴を取得してリンクマップを作る
+      api.getHistory().then(r => {
+        const links: Record<string, string> = {};
+        for (const h of r.history) {
+          // userName をキーにして最新のリンクを保持
+          if (h.exportedUrl) {
+            const key = `${h.userName}_${h.mode}`;
+            if (!links[key]) links[key] = h.exportedUrl;
+          }
+        }
+        setExportLinks(links);
+
+        // 履歴を SavedPlanSummary 風に変換して表示
+        const seen = new Set<string>();
+        const plans: SavedPlanSummary[] = [];
+        for (const h of r.history) {
+          const key = `${h.userName}_${h.mode}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          plans.push({
+            planId: '',
+            clientFolderId: '',
+            clientName: h.userName,
+            authorEmail: '',
+            authorName: h.userId ? '' : '',
+            mode: h.mode,
+            status: 'completed',
+            updatedAt: h.exportedAt,
+          });
+        }
+        setRecentPlans(plans.slice(0, 12));
+      }).catch(() => {});
+    });
   }, []);
 
   return (
@@ -48,27 +84,53 @@ export default function Home({ user, onNavigate, onLogout, toast }: Props) {
           <span style={S.heroArrow}>&rarr;</span>
         </div>
 
-        {history.length > 0 && (
+        {recentPlans.length > 0 && (
           <>
-            <h3 style={S.sectionTitle}>最近のエクスポート</h3>
+            <h3 style={S.sectionTitle}>最近のケアプラン</h3>
             <div style={S.recentGrid}>
-              {history.map((h, i) => (
-                <div key={i} style={S.recentCard}>
-                  <div style={S.recentCardHeader}>
-                    <span style={S.avatar}>{h.userName[0]}</span>
-                    <div>
-                      <div style={S.recentName}>{h.userName}</div>
-                      <div style={S.recentMeta}>{h.mode === 'shoki' ? '小規模多機能' : '居宅介護支援'}</div>
+              {recentPlans.map((p, i) => {
+                const exportUrl = exportLinks[`${p.clientName}_${p.mode}`];
+                return (
+                  <div key={i} style={S.recentCard}>
+                    <div style={S.recentCardHeader}>
+                      <span style={S.avatar}>{p.clientName?.[0] || '?'}</span>
+                      <div>
+                        <div style={S.recentName}>{p.clientName}</div>
+                        <div style={S.recentMeta}>{p.mode === 'shoki' ? '小規模多機能' : '居宅介護支援'}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                        background: p.status === 'draft' ? '#fef3c7' : '#dcfce7',
+                        color: p.status === 'draft' ? '#92400e' : '#166534',
+                      }}>
+                        {p.status === 'draft' ? '下書き' : '作成済み'}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#94a3b8' }}>{p.updatedAt?.split('T')[0]}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button style={S.smallBtn} onClick={() => onNavigate('create')}>編集</button>
+                      {exportUrl && (
+                        <a
+                          href={exportUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            ...S.smallBtn,
+                            display: 'inline-block',
+                            textDecoration: 'none',
+                            background: '#059669',
+                          }}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          スプレッドシート
+                        </a>
+                      )}
                     </div>
                   </div>
-                  <div style={S.recentDate}>{h.exportedAt.split('T')[0]}</div>
-                  {h.exportedUrl && (
-                    <a href={h.exportedUrl} target="_blank" rel="noopener noreferrer" style={{ ...S.smallBtn, display: 'inline-block', textDecoration: 'none', marginTop: 10 }}>
-                      開く
-                    </a>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
