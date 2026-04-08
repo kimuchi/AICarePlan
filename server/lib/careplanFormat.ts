@@ -110,153 +110,139 @@ export function buildTable1Requests(
     ? '居宅サービス計画書（1） 兼小規模多機能型居宅介護計画書'
     : '居宅サービス計画書（1）';
 
-  // Column widths (A-F: 6 columns) — 住所列を広めに
-  const colWidths = [160, 180, 100, 180, 80, 380];
+  // 4列構成: A(ラベル180) B(値240) C(ラベル140) D(値520)
+  const colWidths = [180, 240, 140, 520];
   colWidths.forEach((w, i) => requests.push(colWidth(sheetId, i, w)));
 
-  // Row 0: Title header
-  rowData.push({
-    values: [
-      cellData('第1表', { bold: true, fontSize: 11, bgColor: WHITE }),
-      cellData('', {}),
-      cellData(title, { bold: true, fontSize: 14, hAlign: 'CENTER' }),
-      cellData('', {}),
-      cellData('', {}),
-      cellData(`作成年月日 ${meta.createDate}`, { fontSize: 9, hAlign: 'RIGHT' }),
-    ],
-  });
-  requests.push(mergeReq(sheetId, 0, 1, 1, 5));
+  let row = 0;
 
-  // Row 1: Status line
-  rowData.push({
-    values: [
-      cellData('', {}),
-      cellData('', {}),
-      cellData('', {}),
-      cellData('初回 ・ 継続', { fontSize: 9, hAlign: 'CENTER' }),
-      cellData('認定済 ・ 申請中', { fontSize: 9, hAlign: 'CENTER' }),
-      cellData('', {}),
-    ],
-  });
+  // Row 0: タイトル行 — 第1表 | 居宅サービス計画書(1)... | 作成年月日
+  rowData.push({ values: [
+    cellData('第1表', { bold: true, fontSize: 12, bgColor: WHITE }),
+    cellData(title, { bold: true, fontSize: 13, hAlign: 'CENTER' }),
+    cellData('', {}),
+    cellData(`作成年月日 ${meta.createDate}`, { fontSize: 9, hAlign: 'RIGHT' }),
+  ]});
+  requests.push(mergeReq(sheetId, row, row + 1, 1, 3));
+  row++;
 
-  // Row 2: User info
-  rowData.push({
-    values: [
-      cellData('利用者名', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9 }),
-      cellData(`${user.name} 様`, { fontSize: 10 }),
-      cellData('生年月日', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9 }),
-      cellData(user.birthDate, { fontSize: 10 }),
-      cellData('住所', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9 }),
-      cellData(user.address, { fontSize: 10 }),
-    ],
-  });
+  // Row 1: 初回・継続 | 認定済・申請中
+  rowData.push({ values: [
+    cellData('', {}),
+    cellData('', {}),
+    cellData('初回 ・ 継続', { fontSize: 9, hAlign: 'CENTER', bold: true }),
+    cellData('認定済 ・ 申請中', { fontSize: 9, hAlign: 'CENTER', bold: true }),
+  ]});
+  row++;
 
-  // Row 3: Creator
-  rowData.push({
-    values: [
-      cellData('居宅サービス計画作成者氏名', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9 }),
-      cellData(meta.creator, { fontSize: 10 }),
-    ],
-  });
-  requests.push(mergeReq(sheetId, 3, 4, 1, 6));
+  // Row 2: 利用者名 | 値 | 生年月日 | 値
+  rowData.push({ values: [
+    cellData('利用者名', { bold: true, bgColor: LIGHT_GRAY, fontSize: 10 }),
+    cellData(`${user.name} 様`, { fontSize: 10 }),
+    cellData('生年月日', { bold: true, bgColor: LIGHT_GRAY, fontSize: 10 }),
+    cellData(user.birthDate || '', { fontSize: 10 }),
+  ]});
+  row++;
 
-  // Row 4: Facility
-  rowData.push({
-    values: [
-      cellData('居宅介護支援事業者・事業所名および所在地', { bold: true, bgColor: LIGHT_GRAY, fontSize: 8 }),
-      cellData(meta.facility, { fontSize: 10 }),
-      cellData('', {}),
-      cellData('', {}),
-      cellData('住所', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9 }),
-      cellData(meta.facilityAddress, { fontSize: 10 }),
-    ],
-  });
-  requests.push(mergeReq(sheetId, 4, 5, 1, 4));
+  // Row 3: 住所 | 値(3列結合)
+  rowData.push({ values: [
+    cellData('住所', { bold: true, bgColor: LIGHT_GRAY, fontSize: 10 }),
+    cellData(user.address || '', { fontSize: 10 }),
+  ]});
+  requests.push(mergeReq(sheetId, row, row + 1, 1, 4));
+  row++;
 
-  // Row 5: Create/Change date
-  rowData.push({
-    values: [
-      cellData('居宅サービス計画作成(変更)日', { bold: true, bgColor: LIGHT_GRAY, fontSize: 8 }),
-      cellData(meta.createDate, { fontSize: 10 }),
-      cellData('', {}),
-      cellData('', {}),
-      cellData('初回居宅サービス計画作成日', { bold: true, bgColor: LIGHT_GRAY, fontSize: 8 }),
-      cellData(meta.firstCreateDate, { fontSize: 10 }),
-    ],
-  });
-  requests.push(mergeReq(sheetId, 5, 6, 1, 4));
+  // Row 4: 居宅サービス計画作成者氏名 | 値(3列結合)
+  rowData.push({ values: [
+    cellData('居宅サービス計画\n作成者氏名', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9, wrap: true }),
+    cellData(meta.creator, { fontSize: 10 }),
+  ]});
+  requests.push(mergeReq(sheetId, row, row + 1, 1, 4));
+  row++;
 
-  // Row 6: Cert date
-  rowData.push({
-    values: [
-      cellData('認定日', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9 }),
-      cellData(user.certDate || '', { fontSize: 10 }),
-      cellData('', {}),
-      cellData('認定の有効期間', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9 }),
-      cellData(`${user.certPeriod?.start || ''} 〜 ${user.certPeriod?.end || ''}`, { fontSize: 10 }),
-      cellData('', {}),
-    ],
-  });
-  requests.push(mergeReq(sheetId, 6, 7, 1, 3));
-  requests.push(mergeReq(sheetId, 6, 7, 4, 6));
+  // Row 5: 居宅介護支援事業者・事業所名および所在地 | 値(3列結合)
+  const facilityFull = meta.facilityAddress
+    ? `${meta.facility}　${meta.facilityAddress}`
+    : meta.facility;
+  rowData.push({ values: [
+    cellData('居宅介護支援事業者\n・事業所名\nおよび所在地', { bold: true, bgColor: LIGHT_GRAY, fontSize: 8, wrap: true }),
+    cellData(facilityFull, { fontSize: 10 }),
+  ]});
+  requests.push(mergeReq(sheetId, row, row + 1, 1, 4));
+  requests.push(rowHeight(sheetId, row, 40));
+  row++;
 
-  // Row 7: Care level
-  rowData.push({
-    values: [
-      cellData('要介護状態区分', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9 }),
-      cellData(
-        ['要支援1', '要支援2', '要介護1', '要介護2', '要介護3', '要介護4', '要介護5']
-          .map(level => level === user.careLevel ? `【${level}】` : level)
-          .join(' ・ '),
-        { fontSize: 9 }
-      ),
-    ],
-  });
-  requests.push(mergeReq(sheetId, 7, 8, 1, 6));
+  // Row 6: 居宅サービス計画作成(変更)日 | 値 | 初回居宅サービス計画作成日 | 値
+  rowData.push({ values: [
+    cellData('居宅サービス計画\n作成(変更)日', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9, wrap: true }),
+    cellData(meta.createDate, { fontSize: 10 }),
+    cellData('初回居宅サービス\n計画作成日', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9, wrap: true }),
+    cellData(meta.firstCreateDate || '', { fontSize: 10 }),
+  ]});
+  row++;
 
-  // Row 8: Assessment result (large cell)
+  // Row 7: 認定日 | 値 | 認定の有効期間 | 値
+  rowData.push({ values: [
+    cellData('認定日', { bold: true, bgColor: LIGHT_GRAY, fontSize: 10 }),
+    cellData(user.certDate || '', { fontSize: 10 }),
+    cellData('認定の有効期間', { bold: true, bgColor: LIGHT_GRAY, fontSize: 10 }),
+    cellData(`${user.certPeriod?.start || ''} 〜 ${user.certPeriod?.end || ''}`, { fontSize: 10 }),
+  ]});
+  row++;
+
+  // Row 8: 要介護状態区分 | 値(3列結合)
+  const careLevelStr = ['要支援1', '要支援2', '要介護1', '要介護2', '要介護3', '要介護4', '要介護5']
+    .map(level => {
+      const cl = (user.careLevel || '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      return cl.includes(level.replace('要', '')) || cl === level ? `【${level}】` : level;
+    })
+    .join(' ・ ');
+  rowData.push({ values: [
+    cellData('要介護状態区分', { bold: true, bgColor: LIGHT_GRAY, fontSize: 10 }),
+    cellData(careLevelStr, { fontSize: 9 }),
+  ]});
+  requests.push(mergeReq(sheetId, row, row + 1, 1, 4));
+  row++;
+
+  // Row 9: 利用者及び家族の意向... | 値(3列結合)
   const assessmentText = `${table1.userWishes}\n${table1.familyWishes}\n${table1.assessmentResult}`;
-  rowData.push({
-    values: [
-      cellData('利用者及び家族の\n生活に対する\n意向を踏まえた\n課題分析の結果', { bold: true, bgColor: LIGHT_GRAY, fontSize: 8, wrap: true }),
-      cellData(assessmentText, { fontSize: 10, wrap: true }),
-    ],
-  });
-  requests.push(mergeReq(sheetId, 8, 9, 1, 6));
-  requests.push(rowHeight(sheetId, 8, 150));
+  rowData.push({ values: [
+    cellData('利用者及び家族の\n生活に対する意向を\n踏まえた課題分析\nの結果', { bold: true, bgColor: LIGHT_GRAY, fontSize: 8, wrap: true }),
+    cellData(assessmentText, { fontSize: 10, wrap: true }),
+  ]});
+  requests.push(mergeReq(sheetId, row, row + 1, 1, 4));
+  requests.push(rowHeight(sheetId, row, 150));
+  row++;
 
-  // Row 9: Committee opinion
-  rowData.push({
-    values: [
-      cellData('介護認定審査会の\n意見及びサービス\nの種類の指定', { bold: true, bgColor: LIGHT_GRAY, fontSize: 8, wrap: true }),
-      cellData(table1.committeeOpinion, { fontSize: 10 }),
-    ],
-  });
-  requests.push(mergeReq(sheetId, 9, 10, 1, 6));
+  // Row 10: 介護認定審査会の意見... | 値(3列結合)
+  rowData.push({ values: [
+    cellData('介護認定審査会の\n意見及びサービス\nの種類の指定', { bold: true, bgColor: LIGHT_GRAY, fontSize: 8, wrap: true }),
+    cellData(table1.committeeOpinion || '特になし', { fontSize: 10 }),
+  ]});
+  requests.push(mergeReq(sheetId, row, row + 1, 1, 4));
+  row++;
 
-  // Row 10: Total policy
-  rowData.push({
-    values: [
-      cellData('総合的な援助の\n方針', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9, wrap: true }),
-      cellData(table1.totalPolicy, { fontSize: 10, wrap: true }),
-    ],
-  });
-  requests.push(mergeReq(sheetId, 10, 11, 1, 6));
-  requests.push(rowHeight(sheetId, 10, 200));
+  // Row 11: 総合的な援助の方針 | 値(3列結合)
+  rowData.push({ values: [
+    cellData('総合的な援助の\n方針', { bold: true, bgColor: LIGHT_GRAY, fontSize: 9, wrap: true }),
+    cellData(table1.totalPolicy, { fontSize: 10, wrap: true }),
+  ]});
+  requests.push(mergeReq(sheetId, row, row + 1, 1, 4));
+  requests.push(rowHeight(sheetId, row, 200));
+  row++;
 
-  // Row 11: Living support reason
-  rowData.push({
-    values: [
-      cellData('生活援助中心型の\n算定理由', { bold: true, bgColor: LIGHT_GRAY, fontSize: 8, wrap: true }),
-      cellData(table1.livingSupportReason, { fontSize: 10 }),
-    ],
-  });
-  requests.push(mergeReq(sheetId, 11, 12, 1, 6));
+  // Row 12: 生活援助中心型の算定理由 | 値(3列結合)
+  rowData.push({ values: [
+    cellData('生活援助中心型の\n算定理由', { bold: true, bgColor: LIGHT_GRAY, fontSize: 8, wrap: true }),
+    cellData(table1.livingSupportReason || '', { fontSize: 10 }),
+  ]});
+  requests.push(mergeReq(sheetId, row, row + 1, 1, 4));
+  row++;
 
   // Outer thick border
   requests.push({
     updateBorders: {
-      range: { sheetId, startRowIndex: 0, endRowIndex: 12, startColumnIndex: 0, endColumnIndex: 6 },
+      range: { sheetId, startRowIndex: 0, endRowIndex: row, startColumnIndex: 0, endColumnIndex: 4 },
       top: thickBorder(),
       bottom: thickBorder(),
       left: thickBorder(),
