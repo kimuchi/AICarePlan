@@ -222,6 +222,10 @@ export async function updateAllowlist(allowlist: Array<{ email: string; role: st
   });
 }
 
+export async function getSystemUsers(): Promise<{ users: Array<{ email: string; name: string; role: string }> }> {
+  return request('/api/settings/users');
+}
+
 export async function getHistory(): Promise<{ history: Array<{ userId: string; userName: string; mode: string; exportedUrl: string; exportedAt: string }> }> {
   return request('/api/settings/history');
 }

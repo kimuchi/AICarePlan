@@ -96,6 +96,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<ExtractedUserProfile | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
+  const [currentSharedWith, setCurrentSharedWith] = useState('');
   const [savedPlans, setSavedPlans] = useState<SavedPlanSummary[]>([]);
 
   // 事業所IDが変わったら事業所データを更新
@@ -142,6 +143,7 @@ export default function App() {
     setUserProfile(null);
     setExportUrl(null);
     setCurrentPlanId(null);
+    setCurrentSharedWith('');
     setSavedPlans([]);
   };
 
@@ -154,6 +156,7 @@ export default function App() {
       if (planData.userProfile) setUserProfile(planData.userProfile);
       if (data.mode) setMode(data.mode as BusinessMode);
       setCurrentPlanId(planId);
+      setCurrentSharedWith(data.sharedWith || '');
       // selectedUser を復元（clientFolderIdとclientNameから）
       if (data.clientFolderId) {
         setSelectedUser({
@@ -285,14 +288,20 @@ export default function App() {
     };
   };
 
-  const handleExport = async (plan: GeneratedPlan, um?: any, pm?: any) => {
+  /** 統合保存: スプレッドシートにエクスポート + draftsに参照を記録 */
+  const handleSave = async (plan: GeneratedPlan, um?: any, pm?: any) => {
+    const folderId = selectedUser?.folderId || '';
+    const clientName = um?.name || userProfile?.name || selectedUser?.name || '';
+    if (!folderId) {
+      toast('利用者が選択されていません。利用者選択からやり直してください。');
+      return;
+    }
     try {
       const meta = pm || await buildMeta();
-
       const userInfo = {
         id: selectedUser?.id || '',
-        name: um?.name || userProfile?.name || selectedUser?.name || '',
-        folderId: selectedUser?.folderId || '',
+        name: clientName,
+        folderId,
         birthDate: um?.birthDate || userProfile?.birthDate || '',
         careLevel: um?.careLevel || userProfile?.careLevel || '',
         address: um?.address || userProfile?.address || '',
@@ -303,44 +312,28 @@ export default function App() {
         },
       };
 
-      if (!userInfo.folderId) {
-        toast('利用者が選択されていません。利用者選択からやり直してください。');
-        return;
-      }
-
+      // 1. スプレッドシートにエクスポート
       const result = await exportToSheets(userInfo, plan, meta, mode);
       setExportUrl(result.url);
-      toast('Googleスプレッドシートにエクスポートしました');
-    } catch (err: any) {
-      toast(`エクスポートエラー: ${err.message}`);
-    }
-  };
 
-  const handleSaveDraft = async (plan: GeneratedPlan, um?: any, pm?: any) => {
-    const folderId = selectedUser?.folderId || '';
-    const clientName = um?.name || userProfile?.name || selectedUser?.name || '';
-    if (!folderId) {
-      toast('利用者が選択されていません');
-      return;
-    }
-    try {
-      const result = await savePlan({
+      // 2. draftsシートにプランデータ + スプレッドシートURLを保存
+      const saveResult = await savePlan({
         planId: currentPlanId || undefined,
         clientFolderId: folderId,
         clientName,
         mode,
-        status: 'draft',
+        status: 'completed',
         planJson: JSON.stringify({
-          plans: plans,
-          existingPlan,
-          userProfile,
+          plans, existingPlan, userProfile,
           selectedPlan: plan,
           editedUserMeta: um,
           editedPlanMeta: pm,
+          exportedUrl: result.url,
         }),
       });
-      setCurrentPlanId(result.planId);
-      toast('下書きを保存しました');
+      setCurrentPlanId(saveResult.planId);
+
+      toast('保存しました（スプレッドシートにエクスポート済み）');
     } catch (err: any) {
       toast(`保存エラー: ${err.message}`);
     }
@@ -526,13 +519,14 @@ export default function App() {
               firstCreateDate: userProfile?.firstCreateDate || '',
             }}
             mode={mode}
-            onSaveDraft={handleSaveDraft}
-            onExport={handleExport}
+            onSave={handleSave}
             currentPlanId={currentPlanId}
+            currentSharedWith={currentSharedWith}
             onShare={async (planId, emails) => {
               try {
                 const { sharePlan } = await import('./api');
                 await sharePlan(planId, emails);
+                setCurrentSharedWith(emails);
                 toast('共有設定を保存しました');
               } catch (err: any) {
                 toast(`共有エラー: ${err.message}`);

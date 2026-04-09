@@ -282,6 +282,25 @@ settingsRouter.put('/allowlist', requireAdmin, async (req: Request, res: Respons
   }
 });
 
+// ユーザー一覧（共有先候補。名前とメールのみ返す）
+settingsRouter.get('/users', async (req: Request, res: Response) => {
+  try {
+    const token = getAccessToken(req);
+    if (!token) return res.status(401).json({ error: 'No access token' });
+    const sid = getSettingsId();
+    if (!sid) return res.json({ users: [] });
+    const rows = await getSheetData(sid, 'allowlist!A:C', token);
+    if (!rows || rows.length <= 1) return res.json({ users: [] });
+    res.json({
+      users: rows.slice(1)
+        .filter(r => r[0])
+        .map(row => ({ email: row[0] || '', name: row[2] || '', role: row[1] || 'user' })),
+    });
+  } catch {
+    res.json({ users: [] });
+  }
+});
+
 settingsRouter.get('/history', async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
