@@ -73,6 +73,24 @@ export default function PlanEdit({
     }));
   };
 
+  const handleTable2Update = (table2: GeneratedPlan['table2']) => {
+    if (!activePlan) return;
+    const id = activePlanId === 'EXISTING' ? 'EXISTING' : activePlanId;
+    setEditedPlans(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || activePlan), table2 },
+    }));
+  };
+
+  const handleTable3Update = (table3: GeneratedPlan['table3']) => {
+    if (!activePlan) return;
+    const id = activePlanId === 'EXISTING' ? 'EXISTING' : activePlanId;
+    setEditedPlans(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || activePlan), table3 },
+    }));
+  };
+
   const handleSave = async () => {
     if (!activePlan || saving) return;
     setSaving(true);
@@ -177,10 +195,10 @@ export default function PlanEdit({
         />
       )}
       {activeTable === 'table2' && (
-        <Table2View plan={activePlan} userName={userMeta.name} meta={planMeta} mode={mode} />
+        <Table2View plan={activePlan} userName={userMeta.name} meta={planMeta} mode={mode} onUpdate={handleTable2Update} />
       )}
       {activeTable === 'table3' && (
-        <Table3View plan={activePlan} userName={userMeta.name} meta={planMeta} />
+        <Table3View plan={activePlan} userName={userMeta.name} meta={planMeta} onUpdate={handleTable3Update} />
       )}
 
       {/* Share dialog */}
