@@ -28,10 +28,10 @@ interface Props {
   userMeta: UserMeta;
   planMeta: PlanMeta;
   mode: BusinessMode;
-  onSaveDraft: (plan: GeneratedPlan) => void;
-  onExport: (plan: GeneratedPlan) => void;
+  onSaveDraft: (plan: GeneratedPlan) => Promise<void> | void;
+  onExport: (plan: GeneratedPlan) => Promise<void> | void;
   currentPlanId?: string | null;
-  onShare?: (planId: string, emails: string) => void;
+  onShare?: (planId: string, emails: string) => Promise<void> | void;
 }
 
 const PLAN_COLORS: Record<string, string> = {
@@ -51,6 +51,9 @@ export default function PlanEdit({
   const [editedPlans, setEditedPlans] = useState<Record<string, GeneratedPlan>>({});
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareEmails, setShareEmails] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const getActivePlan = (): GeneratedPlan | null => {
     if (activePlanId === 'EXISTING') return existingPlan;
@@ -62,12 +65,37 @@ export default function PlanEdit({
   const activePlan = getActivePlan();
 
   const handleTable1Update = (table1: GeneratedPlan['table1']) => {
-    if (!activePlan || activePlanId === 'EXISTING') return;
+    if (!activePlan) return;
+    const id = activePlanId === 'EXISTING' ? 'EXISTING' : activePlanId;
     setEditedPlans(prev => ({
       ...prev,
-      [activePlanId]: { ...activePlan, table1 },
+      [id]: { ...activePlan, table1 },
     }));
   };
+
+  const handleSave = async () => {
+    if (!activePlan || saving) return;
+    setSaving(true);
+    try { await onSaveDraft(activePlan); } finally { setSaving(false); }
+  };
+
+  const handleExport = async () => {
+    if (!activePlan || exporting) return;
+    setExporting(true);
+    try { await onExport(activePlan); } finally { setExporting(false); }
+  };
+
+  const handleShare = async () => {
+    if (!currentPlanId || !onShare || sharing) return;
+    setSharing(true);
+    try {
+      await onShare(currentPlanId, shareEmails);
+      setShowShareDialog(false);
+      setShareEmails('');
+    } finally { setSharing(false); }
+  };
+
+  const busy = saving || exporting || sharing;
 
   if (!activePlan) return <p>プランが選択されていません</p>;
 
@@ -111,7 +139,7 @@ export default function PlanEdit({
           background: activePlanId === 'EXISTING' ? '#faf5ff' : '#f8fafc',
         }}>
           {activePlanId === 'EXISTING'
-            ? '既存のケアプランを表示しています。'
+            ? '情報源から読み込んだ既存のケアプランです。'
             : activePlan.summary
           }
         </div>
@@ -149,30 +177,21 @@ export default function PlanEdit({
         />
       )}
       {activeTable === 'table2' && (
-        <Table2View
-          plan={activePlan}
-          userName={userMeta.name}
-          meta={planMeta}
-          mode={mode}
-        />
+        <Table2View plan={activePlan} userName={userMeta.name} meta={planMeta} mode={mode} />
       )}
       {activeTable === 'table3' && (
-        <Table3View
-          plan={activePlan}
-          userName={userMeta.name}
-          meta={planMeta}
-        />
+        <Table3View plan={activePlan} userName={userMeta.name} meta={planMeta} />
       )}
 
       {/* Share dialog */}
-      {showShareDialog && currentPlanId && onShare && (
+      {showShareDialog && (
         <div style={{
           marginTop: 16, padding: '16px 20px', background: '#f0f7ff',
           borderRadius: 12, border: '1px solid #bfdbfe',
         }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#0f2942', marginBottom: 8 }}>プランを共有</div>
           <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
-            共有先のメールアドレスを入力してください（カンマ区切りで複数可、全員共有は * ）
+            共有先のメールアドレス（カンマ区切り）。全員に共有する場合は * を入力。
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
@@ -182,10 +201,11 @@ export default function PlanEdit({
               onChange={e => setShareEmails(e.target.value)}
             />
             <button
-              style={{ ...S.primaryBtn, padding: '8px 16px', fontSize: 13 }}
-              onClick={() => { onShare(currentPlanId, shareEmails); setShowShareDialog(false); setShareEmails(''); }}
+              style={{ ...S.primaryBtn, padding: '8px 16px', fontSize: 13, opacity: sharing ? 0.6 : 1 }}
+              disabled={sharing || !shareEmails.trim()}
+              onClick={handleShare}
             >
-              共有
+              {sharing ? '共有中...' : '共有'}
             </button>
             <button
               style={{ ...S.secondaryBtn, padding: '8px 12px', fontSize: 13 }}
@@ -198,17 +218,26 @@ export default function PlanEdit({
       )}
 
       <div style={S.stepActions}>
-        <button style={S.secondaryBtn} onClick={() => onSaveDraft(activePlan)}>
-          保存
+        <button
+          style={{ ...S.secondaryBtn, opacity: saving ? 0.6 : 1 }}
+          disabled={busy}
+          onClick={handleSave}
+        >
+          {saving ? '保存中...' : '保存'}
         </button>
-        <button style={S.secondaryBtn} onClick={() => setShowShareDialog(!showShareDialog)}>
+        <button
+          style={{ ...S.secondaryBtn, opacity: busy ? 0.6 : 1 }}
+          disabled={busy}
+          onClick={() => setShowShareDialog(!showShareDialog)}
+        >
           共有
         </button>
         <button
-          style={{ ...S.primaryBtn, background: '#0f7c3f' }}
-          onClick={() => onExport(activePlan)}
+          style={{ ...S.primaryBtn, background: '#0f7c3f', opacity: exporting ? 0.6 : 1 }}
+          disabled={busy}
+          onClick={handleExport}
         >
-          Googleスプレッドシートにエクスポート
+          {exporting ? 'エクスポート中...' : 'Googleスプレッドシートにエクスポート'}
         </button>
       </div>
     </div>

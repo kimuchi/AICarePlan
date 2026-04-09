@@ -258,18 +258,31 @@ export default function App() {
   };
 
   const handleExport = async (plan: GeneratedPlan) => {
-    if (!selectedUser) return;
     try {
       const meta = await buildMeta();
 
       const userInfo = {
-        id: selectedUser.id,
-        name: selectedUser.name,
-        folderId: selectedUser.folderId,
-        birthDate: '',
-        careLevel: '',
-        address: '',
+        id: selectedUser?.id || '',
+        name: userProfile?.name || selectedUser?.name || '',
+        folderId: selectedUser?.folderId || '',
+        birthDate: userProfile?.birthDate || '',
+        careLevel: userProfile?.careLevel || '',
+        address: userProfile?.address || '',
+        certDate: userProfile?.certDate || '',
+        certPeriod: {
+          start: userProfile?.certPeriodStart || '',
+          end: userProfile?.certPeriodEnd || '',
+        },
       };
+
+      if (!userInfo.folderId) {
+        toast('利用者が選択されていません。利用者選択からやり直してください。');
+        return;
+      }
+
+      if (userProfile?.firstCreateDate) {
+        meta.firstCreateDate = userProfile.firstCreateDate;
+      }
 
       const result = await exportToSheets(userInfo, plan, meta, mode);
       setExportUrl(result.url);
@@ -280,12 +293,17 @@ export default function App() {
   };
 
   const handleSaveDraft = async (plan: GeneratedPlan) => {
-    if (!selectedUser) return;
+    const folderId = selectedUser?.folderId || '';
+    const clientName = userProfile?.name || selectedUser?.name || '';
+    if (!folderId) {
+      toast('利用者が選択されていません');
+      return;
+    }
     try {
       const result = await savePlan({
         planId: currentPlanId || undefined,
-        clientFolderId: selectedUser.folderId,
-        clientName: selectedUser.name,
+        clientFolderId: folderId,
+        clientName,
         mode,
         status: 'draft',
         planJson: JSON.stringify({
