@@ -331,6 +331,7 @@ export async function listPlans(clientFolderId: string): Promise<{ plans: SavedP
 
 export async function loadPlan(planId: string): Promise<{
   planId: string;
+  clientFolderId: string;
   clientName: string;
   mode: string;
   status: string;

@@ -145,6 +145,34 @@ export default function App() {
     setSavedPlans([]);
   };
 
+  const handleLoadPlan = async (planId: string) => {
+    try {
+      const data = await loadPlan(planId);
+      const planData = data.plan || {};
+      if (planData.plans) setPlans(planData.plans);
+      if (planData.existingPlan) setExistingPlan(planData.existingPlan);
+      if (planData.userProfile) setUserProfile(planData.userProfile);
+      if (data.mode) setMode(data.mode as BusinessMode);
+      setCurrentPlanId(planId);
+      // selectedUser を復元（clientFolderIdとclientNameから）
+      if (data.clientFolderId) {
+        setSelectedUser({
+          id: data.clientFolderId,
+          name: data.clientName || '',
+          folderName: data.clientName ? `${data.clientName}様` : '',
+          folderId: data.clientFolderId,
+          hasConfidential: false,
+          modifiedTime: '',
+        } as any);
+      }
+      setCurrentView('create');
+      setStep(2);
+      toast('プランを読み込みました');
+    } catch (err: any) {
+      toast(`読み込みエラー: ${err.message}`);
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!selectedUser) return;
     setAnalyzing(true);
@@ -381,22 +409,7 @@ export default function App() {
           }}
           onLogout={handleLogout}
           toast={toast}
-          onLoadPlan={async (planId) => {
-            try {
-              const data = await loadPlan(planId);
-              const planData = data.plan || {};
-              if (planData.plans) setPlans(planData.plans);
-              if (planData.existingPlan) setExistingPlan(planData.existingPlan);
-              if (planData.userProfile) setUserProfile(planData.userProfile);
-              if (data.mode) setMode(data.mode as BusinessMode);
-              setCurrentPlanId(planId);
-              setCurrentView('create');
-              setStep(2);
-              toast('プランを読み込みました');
-            } catch (err: any) {
-              toast(`読み込みエラー: ${err.message}`);
-            }
-          }}
+          onLoadPlan={handleLoadPlan}
         />
       </>
     );
@@ -468,21 +481,7 @@ export default function App() {
             onNext={() => setStep(1)}
             savedPlans={savedPlans}
             onSavedPlansChange={setSavedPlans}
-            onLoadPlan={async (planId) => {
-              try {
-                const data = await loadPlan(planId);
-                const planData = data.plan || {};
-                if (planData.plans) setPlans(planData.plans);
-                if (planData.existingPlan) setExistingPlan(planData.existingPlan);
-                if (planData.userProfile) setUserProfile(planData.userProfile);
-                if (data.mode) setMode(data.mode as BusinessMode);
-                setCurrentPlanId(planId);
-                setStep(2);
-                toast('プランを読み込みました');
-              } catch (err: any) {
-                toast(`読み込みエラー: ${err.message}`);
-              }
-            }}
+            onLoadPlan={handleLoadPlan}
           />
         )}
 
