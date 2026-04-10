@@ -461,11 +461,23 @@ export function buildTable3Requests(
     ],
   });
 
-  // Build schedule lookup: day -> hour -> ScheduleEntry
-  const scheduleLookup = new Map<string, ScheduleEntry>();
+  // Build schedule lookup: 各サービスが重なる全セルを計算
+  // key: "day-hour" → { entry, isFirst } （isFirst = 開始セルのみラベル表示）
+  const scheduleLookup = new Map<string, { entry: ScheduleEntry; isFirst: boolean }>();
   for (const s of table3.schedule) {
-    const key = `${s.day}-${Math.floor(s.startHour / 2) * 2}`;
-    scheduleLookup.set(key, s);
+    const sStart = s.startHour + s.startMin / 60;
+    const sEnd = s.endHour + s.endMin / 60;
+    for (const slot of TIME_SLOTS) {
+      const slotEnd = slot + 2;
+      if (sStart < slotEnd && sEnd > slot) {
+        const key = `${s.day}-${slot}`;
+        // 開始セル（最初の重なりセル）にだけラベルを表示
+        const isFirst = slot === Math.floor(s.startHour / 2) * 2;
+        if (!scheduleLookup.has(key)) {
+          scheduleLookup.set(key, { entry: s, isFirst });
+        }
+      }
+    }
   }
 
   // Build daily activity lookup: hour -> activity
@@ -498,15 +510,19 @@ export function buildTable3Requests(
 
     const dayCells = DAYS_ORDER.map(day => {
       const key = `${day}-${hour}`;
-      const entry = scheduleLookup.get(key);
-      if (entry) {
-        const timeStr = `${String(entry.startHour).padStart(2, '0')}:${String(entry.startMin).padStart(2, '0')}〜${String(entry.endHour).padStart(2, '0')}:${String(entry.endMin).padStart(2, '0')}`;
-        return cellData(`${entry.label}\n${timeStr}`, {
-          fontSize: 9,
-          hAlign: 'CENTER',
-          bgColor: getServiceColor(entry.label),
-          wrap: true,
-        });
+      const hit = scheduleLookup.get(key);
+      if (hit) {
+        const { entry, isFirst } = hit;
+        if (isFirst) {
+          // 開始セル: ラベル + 時間帯を表示
+          const timeStr = `${String(entry.startHour).padStart(2, '0')}:${String(entry.startMin).padStart(2, '0')}〜${String(entry.endHour).padStart(2, '0')}:${String(entry.endMin).padStart(2, '0')}`;
+          return cellData(`${entry.label}\n${timeStr}`, {
+            fontSize: 9, hAlign: 'CENTER', bgColor: getServiceColor(entry.label), wrap: true,
+          });
+        } else {
+          // 継続セル: 色だけ（ラベルなし）
+          return cellData('', { bgColor: getServiceColor(entry.label) });
+        }
       }
       return cellData('', {});
     });
