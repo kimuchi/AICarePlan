@@ -52,23 +52,24 @@ app.get('/healthz', (_req, res) => {
 
 // ── Manual (認証不要) ──
 app.get('/api/manual', (_req, res) => {
-  // 複数のパス候補を試す（dev / production / Docker）
-  const candidates = [
-    path.resolve(__dirname, '../../docs/user-manual.md'),   // dev: server/ → ../../docs/
-    path.resolve(__dirname, '../docs/user-manual.md'),      // alt
-    path.resolve(process.cwd(), 'docs/user-manual.md'),    // Docker: /app/docs/
-    path.resolve('/app/docs/user-manual.md'),               // Docker absolute
-  ];
-  for (const p of candidates) {
-    try {
+  try {
+    const candidates = [
+      path.resolve(__dirname, '../../docs/user-manual.md'),
+      path.resolve(__dirname, '../docs/user-manual.md'),
+      path.join(process.cwd(), 'docs', 'user-manual.md'),
+      '/app/docs/user-manual.md',
+    ];
+    for (const p of candidates) {
       if (fs.existsSync(p)) {
-        const content = fs.readFileSync(p, 'utf-8');
-        return res.json({ content });
+        res.json({ content: fs.readFileSync(p, 'utf-8') });
+        return;
       }
-    } catch { /* try next */ }
+    }
+    res.json({ content: '# マニュアル\n\nファイルが見つかりません。' });
+  } catch (err: any) {
+    console.error('Manual error:', err.message);
+    res.status(500).json({ content: '# エラー\n\n' + err.message });
   }
-  console.error('Manual not found. Tried:', candidates);
-  res.json({ content: '# マニュアル\n\nマニュアルファイルが見つかりません。' });
 });
 
 // ── API routes (all require auth) ──

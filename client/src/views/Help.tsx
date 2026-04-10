@@ -144,10 +144,16 @@ export default function Help({ onBack }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/manual')
-      .then(r => r.json())
-      .then(r => setContent(r.content))
-      .catch(() => setContent('# エラー\n\nマニュアルの読み込みに失敗しました。'))
+    fetch('/api/manual', { credentials: 'include' })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(r => setContent(r.content || ''))
+      .catch(e => {
+        console.error('Manual fetch error:', e);
+        setContent(`# エラー\n\nマニュアルの読み込みに失敗しました。\n\n${e.message}`);
+      })
       .finally(() => setLoading(false));
   }, []);
 
