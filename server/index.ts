@@ -3,9 +3,9 @@ import session from 'express-session';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { setupAuth, requireAuth } from './auth.js';
+import { USER_MANUAL } from './lib/manual.js';
 import { usersRouter } from './routes/users.js';
 import { sourcesRouter } from './routes/sources.js';
 import { analyzeRouter } from './routes/analyze.js';
@@ -52,24 +52,7 @@ app.get('/healthz', (_req, res) => {
 
 // ── Manual (認証不要) ──
 app.get('/api/manual', (_req, res) => {
-  try {
-    const candidates = [
-      path.resolve(__dirname, '../../docs/user-manual.md'),
-      path.resolve(__dirname, '../docs/user-manual.md'),
-      path.join(process.cwd(), 'docs', 'user-manual.md'),
-      '/app/docs/user-manual.md',
-    ];
-    for (const p of candidates) {
-      if (fs.existsSync(p)) {
-        res.json({ content: fs.readFileSync(p, 'utf-8') });
-        return;
-      }
-    }
-    res.json({ content: '# マニュアル\n\nファイルが見つかりません。' });
-  } catch (err: any) {
-    console.error('Manual error:', err.message);
-    res.status(500).json({ content: '# エラー\n\n' + err.message });
-  }
+  res.json({ content: USER_MANUAL });
 });
 
 // ── API routes (all require auth) ──
