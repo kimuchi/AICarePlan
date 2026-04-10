@@ -45,6 +45,7 @@ export default function Home({ user, onNavigate, onLogout, toast, onLoadPlan }: 
         <div style={S.headerRight}>
           <span style={S.userBadge}>{user.name}</span>
           <button style={S.settingsBtn} onClick={() => onNavigate('settings')}>設定</button>
+          <button style={S.logoutBtn} onClick={() => onNavigate('help')}>ヘルプ</button>
           <button style={S.logoutBtn} onClick={onLogout}>ログアウト</button>
         </div>
       </header>

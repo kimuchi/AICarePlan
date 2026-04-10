@@ -49,6 +49,21 @@ app.get('/healthz', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ── Manual (認証不要) ──
+app.get('/api/manual', (_req, res) => {
+  const fs = require('fs');
+  const manualPath = path.resolve(__dirname, '../../docs/user-manual.md');
+  // Production: docs is at project root, server is in dist/server
+  const altPath = path.resolve(__dirname, '../docs/user-manual.md');
+  const filePath = fs.existsSync(manualPath) ? manualPath : altPath;
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    res.json({ content });
+  } catch {
+    res.json({ content: '# マニュアル\n\nマニュアルファイルが見つかりません。' });
+  }
+});
+
 // ── API routes (all require auth) ──
 app.use('/api/users', requireAuth, usersRouter);
 app.use('/api/sources', requireAuth, sourcesRouter);

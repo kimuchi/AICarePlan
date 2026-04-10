@@ -24,6 +24,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 COPY --from=client-build /app/dist/client ./dist/client
 COPY --from=server-build /app/dist/server ./dist/server
+COPY docs/ ./docs/
 EXPOSE 8080
 ENV PORT=8080
 CMD ["node", "dist/server/index.js"]
