@@ -3,6 +3,7 @@ import session from 'express-session';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { setupAuth, requireAuth } from './auth.js';
 import { usersRouter } from './routes/users.js';
@@ -51,17 +52,23 @@ app.get('/healthz', (_req, res) => {
 
 // ── Manual (認証不要) ──
 app.get('/api/manual', (_req, res) => {
-  const fs = require('fs');
-  const manualPath = path.resolve(__dirname, '../../docs/user-manual.md');
-  // Production: docs is at project root, server is in dist/server
-  const altPath = path.resolve(__dirname, '../docs/user-manual.md');
-  const filePath = fs.existsSync(manualPath) ? manualPath : altPath;
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    res.json({ content });
-  } catch {
-    res.json({ content: '# マニュアル\n\nマニュアルファイルが見つかりません。' });
+  // 複数のパス候補を試す（dev / production / Docker）
+  const candidates = [
+    path.resolve(__dirname, '../../docs/user-manual.md'),   // dev: server/ → ../../docs/
+    path.resolve(__dirname, '../docs/user-manual.md'),      // alt
+    path.resolve(process.cwd(), 'docs/user-manual.md'),    // Docker: /app/docs/
+    path.resolve('/app/docs/user-manual.md'),               // Docker absolute
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) {
+        const content = fs.readFileSync(p, 'utf-8');
+        return res.json({ content });
+      }
+    } catch { /* try next */ }
   }
+  console.error('Manual not found. Tried:', candidates);
+  res.json({ content: '# マニュアル\n\nマニュアルファイルが見つかりません。' });
 });
 
 // ── API routes (all require auth) ──
