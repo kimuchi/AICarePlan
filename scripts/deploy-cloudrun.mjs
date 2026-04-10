@@ -170,14 +170,22 @@ async function main() {
   }
   success('gcloud CLI OK');
 
-  // ── 2. プロジェクトID取得 ──
+  // ── 2. プロジェクトID取得（優先順位: --project > .env GCP_PROJECT_ID > gcloud default） ──
   if (!opts.project) {
-    info('GCPプロジェクトIDを取得中...');
-    opts.project = run('gcloud config get-value project 2>nul', { capture: true })
-      || run('gcloud config get-value project 2>/dev/null', { capture: true, ignoreError: true });
-    if (!opts.project) {
-      error('プロジェクトIDが見つかりません。--project で指定するか、gcloud config set project を実行してください。');
-      process.exit(1);
+    if (process.env.GCP_PROJECT_ID) {
+      opts.project = process.env.GCP_PROJECT_ID;
+      info(`.env の GCP_PROJECT_ID を使用: ${opts.project}`);
+    } else {
+      info('GCPプロジェクトIDを取得中...');
+      opts.project = run('gcloud config get-value project 2>nul', { capture: true })
+        || run('gcloud config get-value project 2>/dev/null', { capture: true, ignoreError: true });
+      if (!opts.project) {
+        error('プロジェクトIDが見つかりません。');
+        error('.env に GCP_PROJECT_ID を設定するか、--project で指定してください。');
+        process.exit(1);
+      }
+      warn(`gcloud のデフォルトプロジェクトを使用: ${opts.project}`);
+      warn('意図したプロジェクトか確認してください。.env に GCP_PROJECT_ID を設定すると確実です。');
     }
   }
 
