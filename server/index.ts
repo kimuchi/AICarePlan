@@ -5,7 +5,8 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { setupAuth, requireAuth } from './auth.js';
-import { USER_MANUAL } from './lib/manual.js';
+
+const APP_VERSION = '2026.04.10.1';
 import { usersRouter } from './routes/users.js';
 import { sourcesRouter } from './routes/sources.js';
 import { analyzeRouter } from './routes/analyze.js';
@@ -45,14 +46,21 @@ app.use(session({
 // ── Auth setup ──
 setupAuth(app);
 
-// ── Health check ──
+// ── Health check + version ──
 app.get('/healthz', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', version: APP_VERSION, timestamp: new Date().toISOString() });
 });
 
-// ── Manual (認証不要) ──
-app.get('/api/manual', (_req, res) => {
-  res.json({ content: USER_MANUAL });
+// ── Manual (認証不要、インライン埋め込み) ──
+app.get('/api/manual', async (_req, res) => {
+  try {
+    const { USER_MANUAL } = await import('./lib/manual.js');
+    res.json({ content: USER_MANUAL });
+  } catch (err: any) {
+    // manual.tsのインポートに失敗した場合のフォールバック
+    console.error('Manual import error:', err.message);
+    res.json({ content: '# ヘルプ\n\nマニュアルを準備中です。' });
+  }
 });
 
 // ── API routes (all require auth) ──
