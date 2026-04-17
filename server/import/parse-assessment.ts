@@ -1,4 +1,4 @@
-import { AssessmentImportData } from '../../shared/types/imported.js';
+import { AssessmentImportData } from '../types/imported.js';
 
 export async function parseAssessmentWorkbook(_buffer: Buffer): Promise<AssessmentImportData> {
   return {

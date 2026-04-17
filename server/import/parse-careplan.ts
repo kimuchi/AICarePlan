@@ -1,4 +1,4 @@
-import { CareplanImportData } from '../../shared/types/imported.js';
+import { CareplanImportData } from '../types/imported.js';
 
 export async function parseCareplanWorkbook(_buffer: Buffer): Promise<CareplanImportData> {
   return {
