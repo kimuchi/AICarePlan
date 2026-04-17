@@ -368,7 +368,19 @@ export async function extractExistingPlanFromFile(fileId: string, mimeType: stri
 // ── Import ──
 export interface ImportPreviewResponse { items: any[] }
 export async function previewImport(files: File[]): Promise<ImportPreviewResponse> {
-  const payload = await Promise.all(files.map(async f => ({ name: f.name, size: f.size, base64: btoa(String.fromCharCode(...new Uint8Array(await f.arrayBuffer()))) })));
+  const toBase64 = (bytes: Uint8Array): string => {
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    return btoa(binary);
+  };
+  const payload = await Promise.all(files.map(async f => {
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    return { name: f.name, size: f.size, base64: toBase64(bytes) };
+  }));
   return request('/api/import/preview', { method: 'POST', body: JSON.stringify({ files: payload }) });
 }
 

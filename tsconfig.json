@@ -28,8 +28,7 @@
   },
   "include": [
     "client/src/**/*",
-    "server/**/*",
-    "shared/**/*"
+    "server/**/*"
   ],
   "exclude": [
     "node_modules",
