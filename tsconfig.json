@@ -11,13 +11,28 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["client/src/*"],
-      "@server/*": ["server/*"]
+      "@/*": [
+        "client/src/*"
+      ],
+      "@server/*": [
+        "server/*"
+      ]
     }
   },
-  "include": ["client/src/**/*", "server/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "client/src/**/*",
+    "server/**/*",
+    "shared/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

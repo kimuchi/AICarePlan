@@ -269,3 +269,9 @@ npm start
 ```
 
 Viteの開発サーバー（:5173）からAPIリクエストは`localhost:3001`にプロキシされます。
+
+## Excel取り込みAPI（2026-04 追加）
+- `POST /api/import/preview`: multipart `files` を受け取り、ExcelJS で解析。セッションに一時保存。
+- `POST /api/import/commit`: previewで確定した `fileId` をDrive配置、解析JSON生成、必要に応じてdraftsへ追加。
+- `GET /api/users/:folderId/careplan-latest`: 最新 `解析結果_ケアプラン_*.json` を返却。
+- `GET /api/users/:folderId/assessment-latest`: 最新 `解析結果_アセスメント_*.json` を返却。

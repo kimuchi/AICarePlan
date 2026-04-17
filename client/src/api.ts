@@ -364,3 +364,22 @@ export async function extractExistingPlanFromFile(fileId: string, mimeType: stri
     body: JSON.stringify({ fileId, mimeType }),
   });
 }
+
+// ── Import ──
+export interface ImportPreviewResponse { items: any[] }
+export async function previewImport(files: File[]): Promise<ImportPreviewResponse> {
+  const payload = await Promise.all(files.map(async f => ({ name: f.name, size: f.size, base64: btoa(String.fromCharCode(...new Uint8Array(await f.arrayBuffer()))) })));
+  return request('/api/import/preview', { method: 'POST', body: JSON.stringify({ files: payload }) });
+}
+
+export async function commitImport(items: any[]): Promise<{ results: any[] }> {
+  return request('/api/import/commit', { method: 'POST', body: JSON.stringify({ items }) });
+}
+
+export async function getCareplanLatest(folderId: string): Promise<any> {
+  return request(`/api/users/${folderId}/careplan-latest`);
+}
+
+export async function getAssessmentLatest(folderId: string): Promise<any> {
+  return request(`/api/users/${folderId}/assessment-latest`);
+}
