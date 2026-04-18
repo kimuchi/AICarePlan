@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import { writeFile, unlink } from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import { fileURLToPath } from 'url';
 
 const execFileAsync = promisify(execFile);
 
@@ -20,7 +21,8 @@ export async function parseXlsxWithStdlib(buffer: Buffer): Promise<{ sheets: Raw
   const tmp = path.join(os.tmpdir(), `import-${Date.now()}-${Math.random().toString(36).slice(2)}.xlsx`);
   await writeFile(tmp, buffer, { mode: 0o600 });
   try {
-    const script = path.resolve(process.cwd(), 'server/import/parse_xlsx_stdlib.py');
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const script = path.resolve(here, 'parse_xlsx_stdlib.py');
     const pythonCommands = [process.env.PYTHON_BIN, 'python3', 'python', 'py'].filter((v): v is string => !!v);
     let lastError: unknown = null;
 
