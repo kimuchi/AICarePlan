@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { getAccessToken } from '../auth.js';
 import { parseCareplanWorkbook } from '../import/parse-careplan.js';
 import { parseAssessmentWorkbook } from '../import/parse-assessment.js';
-import { listUserFoldersForImport, matchUser, createUserFolderTree } from '../import/user-match.js';
+import { listUserFoldersForImport, matchUser, createUserFolderTree, findUserFolderByNameForImport } from '../import/user-match.js';
 import { placeCareplanArtifacts, placeAssessmentArtifacts } from '../import/drive-place.js';
 
 declare module 'express-session' {
@@ -13,8 +13,6 @@ declare module 'express-session' {
 }
 
 export const importRouter = Router();
-const BULK_FAST_MODE_THRESHOLD = 10;
-const COMMIT_CONCURRENCY = 3;
 
 function detectKind(fileName: string): 'careplan'|'assessment_facesheet'|'unknown' {
   if (/ケアプラン/i.test(fileName)) return 'careplan';

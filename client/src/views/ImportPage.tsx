@@ -22,21 +22,48 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
   };
 
   const doCommit = async () => {
+    if (!preview.length) return;
     setCommitting(true);
     setCommitError(null);
     try {
-      const req = preview.map(p => ({
+      const reqItems = preview.map(p => ({
         fileId: p.fileId,
         fileName: p.fileName,
         userFolderId: p.userMatch?.folderId || null,
         userName: p.extractedUser?.name || '',
         options: { autoCreateMissing: true, forceMode: forceMode === 'auto' ? undefined : forceMode },
       }));
-      const r = await commitImport(req);
-      setResults(r.results || []);
-      const failed = (r.results || []).filter((x: any) => !x.ok).length;
+
+      const aggregatedResults: any[] = [];
+      for (const item of reqItems) {
+        try {
+          const r = await commitImport([item]);
+          const one = Array.isArray(r.results) ? r.results : [];
+          if (one.length > 0) {
+            aggregatedResults.push(...one);
+          } else {
+            aggregatedResults.push({
+              fileId: item.fileId,
+              fileName: item.fileName,
+              ok: false,
+              messages: ['取り込み結果を取得できませんでした'],
+            });
+          }
+        } catch (e: any) {
+          aggregatedResults.push({
+            fileId: item.fileId,
+            fileName: item.fileName,
+            ok: false,
+            messages: [`取り込みAPIでエラー: ${e?.message || '不明なエラー'}`],
+          });
+        }
+        setResults([...aggregatedResults]);
+      }
+
+      const failed = aggregatedResults.filter((x: any) => !x.ok).length;
+      setResults(aggregatedResults);
       if (failed > 0) {
-        setCommitError(`${failed}件のファイルで取り込みに失敗しました。下の結果詳細を確認してください。`);
+        setCommitError(`${failed}件のファイルで取り込みに失敗しました（タイムアウトを含む）。下の結果詳細を確認してください。`);
       }
       toast('取り込み完了');
     } catch (e: any) {
