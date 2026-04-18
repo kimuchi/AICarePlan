@@ -131,6 +131,24 @@ export interface GeneratedPlan {
     dailyActivities: Array<{ time: string; activity: string }>;
     weeklyService: string;
   };
+  /** 取込時のみ設定。サービス担当者会議の要点 */
+  table4?: {
+    date: string;
+    place: string;
+    duration: string;
+    count: string;
+    userAttendance: string;
+    familyAttendance: string;
+    attendees: Array<{ affiliation: string; name: string }>;
+    discussedItems: string;
+    discussionContent: string;
+    conclusion: string;
+    remainingTasks: string;
+  };
+  /** 取込時のみ設定。居宅介護支援経過 */
+  table5?: Array<{ date: string; item: string; content: string }>;
+  /** 取込時のみ設定。サービス利用票等 */
+  table6?: Array<Record<string, string>>;
 }
 
 export type BusinessMode = 'kyotaku' | 'shoki';

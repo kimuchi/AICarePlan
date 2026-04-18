@@ -55,6 +55,7 @@ export interface CareplanImportData {
   };
   table4: Record<string, any>;
   table5: Array<{ date: string; item: string; content: string }>;
+  table6: Array<Record<string, string>>;
   monitoring: {
     history: Array<{ date: string; result: string }>;
     sessions: MonitoringSession[];

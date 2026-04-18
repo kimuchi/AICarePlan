@@ -102,7 +102,8 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
 
     const processItem = async (it: any, index: number) => {
       const cached = req.session.importTemp?.[it.fileId];
-      if (!cached || cached.expiresAt < Date.now()) { results[index] = { fileId: it.fileId, ok: false, messages: ['一時ファイルが見つかりません'] }; return; }
+      const fallbackName = it.fileName || cached?.fileName || '';
+      if (!cached || cached.expiresAt < Date.now()) { results[index] = { fileId: it.fileId, fileName: fallbackName, ok: false, messages: ['一時ファイルが見つかりません'] }; return; }
       try {
         let userFolderId = it.userFolderId as string;
         let userName = (it.userName || cached.parsed?.table1?.userName || cached.parsed?.faceSheet?.name || '').trim();
@@ -137,9 +138,9 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
           : cached.kind === 'assessment_facesheet'
             ? await placeAssessmentArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, skipSheetConversion: bulkFastMode })
             : (() => { throw new Error('未対応ファイル種別です'); })();
-        results[index] = { fileId: it.fileId, ok: true, artifacts, messages: artifacts?.messages || [] };
+        results[index] = { fileId: it.fileId, fileName: cached.fileName, ok: true, artifacts, messages: artifacts?.messages || [] };
       } catch (e: any) {
-        results[index] = { fileId: it.fileId, ok: false, messages: [e.message] };
+        results[index] = { fileId: it.fileId, fileName: cached?.fileName || fallbackName, ok: false, messages: [e.message] };
       }
     };
 

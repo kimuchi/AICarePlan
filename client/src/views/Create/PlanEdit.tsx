@@ -5,6 +5,9 @@ import { getSystemUsers } from '../../api';
 import Table1View from './Table1View';
 import Table2View from './Table2View';
 import Table3View from './Table3View';
+import Table4View from './Table4View';
+import Table5View from './Table5View';
+import Table6View from './Table6View';
 import ReferencePanel from '../../components/reference/ReferencePanel';
 
 interface UserMeta {
@@ -50,7 +53,7 @@ export default function PlanEdit({
   onSave, currentPlanId, currentSharedWith, onShare, clientFolderId,
 }: Props) {
   const [activePlanId, setActivePlanId] = useState(plans.length > 0 ? plans[0].id : (existingPlan ? 'EXISTING' : ''));
-  const [activeTable, setActiveTable] = useState<'table1' | 'table2' | 'table3'>('table1');
+  const [activeTable, setActiveTable] = useState<'table1' | 'table2' | 'table3' | 'table4' | 'table5' | 'table6'>('table1');
   const [editedPlans, setEditedPlans] = useState<Record<string, GeneratedPlan>>({});
   const [editedUserMeta, setEditedUserMeta] = useState<UserMeta>(initialUserMeta);
   const [editedPlanMeta, setEditedPlanMeta] = useState<PlanMeta>(initialPlanMeta);
@@ -100,6 +103,8 @@ export default function PlanEdit({
   const handleTable1Update = (t1: GeneratedPlan['table1']) => updatePlan(activePlanId, { table1: t1 });
   const handleTable2Update = (t2: GeneratedPlan['table2']) => updatePlan(activePlanId, { table2: t2 });
   const handleTable3Update = (t3: GeneratedPlan['table3']) => updatePlan(activePlanId, { table3: t3 });
+  const handleTable4Update = (t4: NonNullable<GeneratedPlan['table4']>) => updatePlan(activePlanId, { table4: t4 });
+  const handleTable5Update = (t5: NonNullable<GeneratedPlan['table5']>) => updatePlan(activePlanId, { table5: t5 });
   const handleUserMetaUpdate = (um: UserMeta) => { pushUndo(); setEditedUserMeta(um); };
   const handlePlanMetaUpdate = (pm: PlanMeta) => { pushUndo(); setEditedPlanMeta(pm); };
 
@@ -166,9 +171,17 @@ export default function PlanEdit({
 
       {/* Table tabs */}
       <div style={S.tableTabs}>
-        {([['table1', '第1表'], ['table2', '第2表'], ['table3', '第3表 週間サービス計画表']] as const).map(([k, l]) => (
-          <button key={k} style={activeTable === k ? S.tableTabActive : S.tableTab} onClick={() => setActiveTable(k)}>{l}</button>
-        ))}
+        {(() => {
+          const tabs: Array<[typeof activeTable, string]> = [
+            ['table1', '第1表'], ['table2', '第2表'], ['table3', '第3表 週間サービス計画表'],
+          ];
+          if (activePlan.table4) tabs.push(['table4', '第4表 会議要点']);
+          if (activePlan.table5 && activePlan.table5.length > 0) tabs.push(['table5', '第5表 支援経過']);
+          if (activePlan.table6 && activePlan.table6.length > 0) tabs.push(['table6', '第6表 利用票']);
+          return tabs.map(([k, l]) => (
+            <button key={k} style={activeTable === k ? S.tableTabActive : S.tableTab} onClick={() => setActiveTable(k)}>{l}</button>
+          ));
+        })()}
       </div>
 
       {activeTable === 'table1' && (
@@ -180,6 +193,15 @@ export default function PlanEdit({
       )}
       {activeTable === 'table3' && (
         <Table3View plan={activePlan} userName={editedUserMeta.name} meta={editedPlanMeta} onUpdate={handleTable3Update} />
+      )}
+      {activeTable === 'table4' && (
+        <Table4View plan={activePlan} userName={editedUserMeta.name} onUpdate={handleTable4Update} />
+      )}
+      {activeTable === 'table5' && (
+        <Table5View plan={activePlan} userName={editedUserMeta.name} onUpdate={handleTable5Update} />
+      )}
+      {activeTable === 'table6' && (
+        <Table6View plan={activePlan} userName={editedUserMeta.name} />
       )}
 
       <ReferencePanel folderId={clientFolderId} />
