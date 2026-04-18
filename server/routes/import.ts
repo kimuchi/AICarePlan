@@ -3,7 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { getAccessToken } from '../auth.js';
 import { parseCareplanWorkbook } from '../import/parse-careplan.js';
 import { parseAssessmentWorkbook } from '../import/parse-assessment.js';
-import { listUserFoldersForImport, matchUser, createUserFolderTree } from '../import/user-match.js';
+import { listUserFoldersForImport, matchUser, createUserFolderTree, findUserFolderByNameForImport } from '../import/user-match.js';
 import { placeCareplanArtifacts, placeAssessmentArtifacts } from '../import/drive-place.js';
 
 declare module 'express-session' {
@@ -93,7 +93,6 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
     const items = (req.body?.items || []) as Array<any>;
     const results: any[] = [];
     const createdFolderByName = new Map<string, string>();
-    const existingUsers = await listUserFoldersForImport(token);
 
     const normalizeName = (name: string) => (name || '').replace(/[\s\u3000]+/g, '').replace(/様$/, '');
 
@@ -116,8 +115,8 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
           if (already) {
             userFolderId = already;
           } else {
-            const matched = existingUsers.find(u => normalizeName(u.folderName) === key);
-            if (matched) {
+            const matched = await findUserFolderByNameForImport(token, userName);
+            if (matched?.folderId) {
               userFolderId = matched.folderId;
             } else {
               const created = await createUserFolderTree(token, userName, false);

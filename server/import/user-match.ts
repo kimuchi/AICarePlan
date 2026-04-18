@@ -35,6 +35,15 @@ export async function listUserFoldersForImport(token: string): Promise<Array<{ f
   return shared.map(f => ({ folderId: f.id, folderName: f.name }));
 }
 
+export async function findUserFolderByNameForImport(token: string, name: string): Promise<{ folderId: string; folderName: string } | null> {
+  const rootFolderId = process.env.USER_ROOT_FOLDER_ID || '';
+  if (!rootFolderId) return null;
+  const folderName = `${name.trim()}様`;
+  const folderId = await findSubfolder(token, rootFolderId, folderName);
+  if (!folderId) return null;
+  return { folderId, folderName };
+}
+
 export async function createUserFolderTree(token: string, name: string, isPrivate = false): Promise<{ folderId: string; folderName: string }> {
   const folderName = `${name.trim()}様`;
   let parentId = process.env.USER_ROOT_FOLDER_ID || '';

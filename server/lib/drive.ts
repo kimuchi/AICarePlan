@@ -327,11 +327,18 @@ export async function trashFilesByName(
   folderId: string,
   fileName: string
 ): Promise<void> {
-  const files = await listFilesInFolder(accessToken, folderId);
-  const target = files.filter(f => f.name === fileName);
-  if (target.length === 0) return;
   const drive = getDriveClient(accessToken);
+  const escaped = fileName.replace(/'/g, "\\'");
+  const res = await drive.files.list({
+    q: `'${folderId}' in parents and name = '${escaped}' and trashed = false`,
+    fields: 'files(id)',
+    pageSize: 20,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+  const target = res.data.files || [];
   for (const f of target) {
+    if (!f.id) continue;
     await drive.files.update({
       fileId: f.id,
       requestBody: { trashed: true },
