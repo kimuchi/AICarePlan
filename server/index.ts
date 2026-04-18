@@ -13,6 +13,8 @@ import { analyzeRouter } from './routes/analyze.js';
 import { exportRouter } from './routes/export.js';
 import { settingsRouter } from './routes/settings.js';
 import { plansRouter } from './routes/plans.js';
+import { importRouter } from './routes/import.js';
+import { referenceRouter } from './routes/reference.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,6 +72,8 @@ app.use('/api/analyze', requireAuth, analyzeRouter);
 app.use('/api/export', requireAuth, exportRouter);
 app.use('/api/settings', requireAuth, settingsRouter);
 app.use('/api/plans', requireAuth, plansRouter);
+app.use('/api/import', requireAuth, importRouter);
+app.use('/api', requireAuth, referenceRouter);
 
 // ── Serve static client in production ──
 const clientDir = path.resolve(__dirname, '../client');
