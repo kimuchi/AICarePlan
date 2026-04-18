@@ -14,6 +14,7 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
   const [forceMode, setForceMode] = useState<'auto' | 'shoki' | 'kyotaku'>('auto');
   const [cleaning, setCleaning] = useState(false);
   const [cleanupResult, setCleanupResult] = useState<ImportCleanupResponse | null>(null);
+  const [cleanOldOnCommit, setCleanOldOnCommit] = useState(false);
 
   const doCleanup = async () => {
     if (cleaning) return;
@@ -81,7 +82,18 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
       if (failed > 0) {
         setCommitError(`${failed}件のファイルで取り込みに失敗しました（タイムアウトを含む）。下の結果詳細を確認してください。`);
       }
-      toast('取り込み完了');
+
+      if (cleanOldOnCommit) {
+        try {
+          const cu = await cleanupImports();
+          setCleanupResult(cu);
+          toast(`取り込み完了（古いファイル ${cu.totalDeleted}件をゴミ箱へ移動）`);
+        } catch (e: any) {
+          toast(`取り込みは成功しましたが整理に失敗: ${e.message}`);
+        }
+      } else {
+        toast('取り込み完了');
+      }
     } catch (e: any) {
       const msg = `取り込みAPIでエラー: ${e.message || '不明なエラー'}`;
       setCommitError(msg);
@@ -155,6 +167,12 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
               {p.warnings?.length > 0 && <div style={{ color: '#b45309' }}>警告: {p.warnings.join(' / ')}</div>}
             </div>
           ))}
+          <div style={{ marginBottom: 10, fontSize: 13 }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={cleanOldOnCommit} onChange={e => setCleanOldOnCommit(e.target.checked)} />
+              取り込み後に古い取込ファイルをゴミ箱へ移動（最新1セットのみ残す）
+            </label>
+          </div>
           <button style={S.primaryBtn} onClick={doCommit} disabled={committing}>{committing ? '取り込み中...' : 'この内容で取り込む'}</button>
         </div>
       )}

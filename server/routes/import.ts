@@ -95,10 +95,12 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
     const items = (req.body?.items || []) as Array<any>;
+    const cleanOld = !!req.body?.cleanOld;
     const results: any[] = Array.from({ length: items.length }, () => ({}));
     const createdFolderByName = new Map<string, string>();
     const existingUsers = await listUserFoldersForImport(token);
     const bulkFastMode = items.length >= BULK_FAST_MODE_THRESHOLD;
+    const committedFolderIds = new Set<string>();
 
     const normalizeName = (name: string) => (name || '').replace(/[\s\u3000]+/g, '').replace(/様$/, '');
 
@@ -140,6 +142,7 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
           : cached.kind === 'assessment_facesheet'
             ? await placeAssessmentArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, skipSheetConversion: bulkFastMode })
             : (() => { throw new Error('未対応ファイル種別です'); })();
+        committedFolderIds.add(userFolderId);
         results[index] = { fileId: it.fileId, fileName: cached.fileName, ok: true, artifacts, messages: artifacts?.messages || [] };
       } catch (e: any) {
         results[index] = { fileId: it.fileId, fileName: cached?.fileName || fallbackName, ok: false, messages: [e.message] };
@@ -151,7 +154,16 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
       await Promise.all(batch.map((it, idx) => processItem(it, i + idx)));
     }
 
-    res.json({ results, bulkFastMode });
+    let cleanup: { totalDeleted: number; totalKept: number; perUser: any[] } | null = null;
+    if (cleanOld && committedFolderIds.size > 0) {
+      try {
+        cleanup = await cleanupImportsForFolders(token, Array.from(committedFolderIds), existingUsers);
+      } catch (e: any) {
+        console.warn('[import/commit] cleanup after commit failed:', e.message);
+      }
+    }
+
+    res.json({ results, bulkFastMode, cleanup });
   } catch (err: any) {
     console.error('Import commit error:', err.message);
     res.status(500).json({ error: '取り込みに失敗しました' });
@@ -196,61 +208,72 @@ function partitionByLatestSet(files: CleanupFileEntry[]): { keep: CleanupFileEnt
   return { keep, trash };
 }
 
+async function cleanupImportsForFolders(
+  token: string,
+  folderIds: string[],
+  allUsers: Array<{ folderId: string; folderName: string }>,
+) {
+  const auth = new google.auth.OAuth2();
+  auth.setCredentials({ access_token: token });
+  const drive = google.drive({ version: 'v3', auth });
+
+  const byId = new Map(allUsers.map(u => [u.folderId, u.folderName]));
+  const perUser: Array<{ userName: string; careplan: { kept: number; deleted: number; deletedNames: string[] }; assessment: { kept: number; deleted: number; deletedNames: string[] } }> = [];
+  let totalDeleted = 0;
+  let totalKept = 0;
+
+  for (const folderId of folderIds) {
+    const userName = byId.get(folderId) || folderId;
+    const careplanFolderId = await findSubfolder(token, folderId, '01_居宅サービス計画書');
+    const assessFolderId = await findSubfolder(token, folderId, '05_アセスメントシート');
+
+    const careplanFiles: CleanupFileEntry[] = [];
+    if (careplanFolderId) {
+      const list = await listFilesInFolder(token, careplanFolderId);
+      for (const f of list) if (isCareplanImport(f.name)) careplanFiles.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, parentName: '01_居宅サービス計画書' });
+    }
+
+    const assessmentFiles: CleanupFileEntry[] = [];
+    const rootList = await listFilesInFolder(token, folderId);
+    for (const f of rootList) if (isAssessmentImport(f.name)) assessmentFiles.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, parentName: userName });
+    if (assessFolderId) {
+      const list = await listFilesInFolder(token, assessFolderId);
+      for (const f of list) if (isAssessmentImport(f.name)) assessmentFiles.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, parentName: '05_アセスメントシート' });
+    }
+
+    const cp = partitionByLatestSet(careplanFiles);
+    const as = partitionByLatestSet(assessmentFiles);
+
+    for (const target of [...cp.trash, ...as.trash]) {
+      try {
+        await drive.files.update({ fileId: target.id, requestBody: { trashed: true }, supportsAllDrives: true });
+      } catch (e: any) {
+        console.warn('[import/cleanup] trash failed:', target.name, e.message);
+      }
+    }
+    const cpDeleted = cp.trash.length;
+    const asDeleted = as.trash.length;
+    totalDeleted += cpDeleted + asDeleted;
+    totalKept += cp.keep.length + as.keep.length;
+    if (cpDeleted + asDeleted + cp.keep.length + as.keep.length > 0) {
+      perUser.push({
+        userName,
+        careplan: { kept: cp.keep.length, deleted: cpDeleted, deletedNames: cp.trash.map(f => f.name) },
+        assessment: { kept: as.keep.length, deleted: asDeleted, deletedNames: as.trash.map(f => f.name) },
+      });
+    }
+  }
+
+  return { totalDeleted, totalKept, perUser };
+}
+
 importRouter.post('/cleanup', async (req: Request, res: Response) => {
   try {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
-    const auth = new google.auth.OAuth2();
-    auth.setCredentials({ access_token: token });
-    const drive = google.drive({ version: 'v3', auth });
-
     const users = await listUserFoldersForImport(token);
-    const perUser: Array<{ userName: string; careplan: { kept: number; deleted: number; deletedNames: string[] }; assessment: { kept: number; deleted: number; deletedNames: string[] } }> = [];
-    let totalDeleted = 0;
-    let totalKept = 0;
-
-    for (const u of users) {
-      const careplanFolderId = await findSubfolder(token, u.folderId, '01_居宅サービス計画書');
-      const assessFolderId = await findSubfolder(token, u.folderId, '05_アセスメントシート');
-
-      const careplanFiles: CleanupFileEntry[] = [];
-      if (careplanFolderId) {
-        const list = await listFilesInFolder(token, careplanFolderId);
-        for (const f of list) if (isCareplanImport(f.name)) careplanFiles.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, parentName: '01_居宅サービス計画書' });
-      }
-
-      const assessmentFiles: CleanupFileEntry[] = [];
-      const rootList = await listFilesInFolder(token, u.folderId);
-      for (const f of rootList) if (isAssessmentImport(f.name)) assessmentFiles.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, parentName: u.folderName });
-      if (assessFolderId) {
-        const list = await listFilesInFolder(token, assessFolderId);
-        for (const f of list) if (isAssessmentImport(f.name)) assessmentFiles.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, parentName: '05_アセスメントシート' });
-      }
-
-      const cp = partitionByLatestSet(careplanFiles);
-      const as = partitionByLatestSet(assessmentFiles);
-
-      for (const target of [...cp.trash, ...as.trash]) {
-        try {
-          await drive.files.update({ fileId: target.id, requestBody: { trashed: true }, supportsAllDrives: true });
-        } catch (e: any) {
-          console.warn('[import/cleanup] trash failed:', target.name, e.message);
-        }
-      }
-      const cpDeleted = cp.trash.length;
-      const asDeleted = as.trash.length;
-      totalDeleted += cpDeleted + asDeleted;
-      totalKept += cp.keep.length + as.keep.length;
-      if (cpDeleted + asDeleted + cp.keep.length + as.keep.length > 0) {
-        perUser.push({
-          userName: u.folderName,
-          careplan: { kept: cp.keep.length, deleted: cpDeleted, deletedNames: cp.trash.map(f => f.name) },
-          assessment: { kept: as.keep.length, deleted: asDeleted, deletedNames: as.trash.map(f => f.name) },
-        });
-      }
-    }
-
-    res.json({ totalDeleted, totalKept, userCount: users.length, perUser });
+    const result = await cleanupImportsForFolders(token, users.map(u => u.folderId), users);
+    res.json({ ...result, userCount: users.length });
   } catch (err: any) {
     console.error('Import cleanup error:', err.message);
     res.status(500).json({ error: 'クリーンアップに失敗しました' });

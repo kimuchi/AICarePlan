@@ -98,6 +98,10 @@ export interface GeneratedPlan {
   table5?: Table5Entry[];
   /** 取込時のみ設定される */
   table6?: Table6Row[];
+  /** このプランが利用者に承認された最新のものであれば true */
+  approved?: boolean;
+  /** 承認日時（ISO string） */
+  approvedAt?: string;
 }
 
 /** プランメタ情報 */

@@ -60,18 +60,24 @@ export function getPromptIds(mode: BusinessMode): {
   table1: string;
   table2: string;
   table3: string;
+  table4: string;
+  table5: string;
 } {
   if (mode === 'shoki') {
     return {
       table1: 'prompt_shoki_table1',
       table2: 'prompt_shoki_table2',
       table3: 'prompt_shoki_table3',
+      table4: 'prompt_shoki_table4',
+      table5: 'prompt_shoki_table5',
     };
   }
   return {
     table1: 'prompt_kyotaku_table1',
     table2: 'prompt_kyotaku_table2',
     table3: 'prompt_kyotaku_table3',
+    table4: 'prompt_kyotaku_table4',
+    table5: 'prompt_kyotaku_table5',
   };
 }
 

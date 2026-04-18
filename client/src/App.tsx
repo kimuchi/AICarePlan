@@ -251,7 +251,18 @@ export default function App() {
       };
 
       const result = await analyzeSources(userInfo, sourceContents, mode, selectedFacilityId, managerNameOverride || undefined);
-      setPlans(result.plans);
+      setPlans(prev => {
+        if (prev.length === 0) return result.plans;
+        // 既存プランに追加する場合は、id が重複しないよう rename
+        const usedIds = new Set(prev.map(p => p.id));
+        const appended = result.plans.map((p, idx) => {
+          let newId = p.id;
+          while (usedIds.has(newId)) newId = `${p.id}_${idx + 1}_${Date.now().toString(36).slice(-3)}`;
+          usedIds.add(newId);
+          return { ...p, id: newId, label: p.label?.includes('(追加)') ? p.label : `${p.label || `プラン${idx + 1}`}(追加)` };
+        });
+        return [...prev, ...appended];
+      });
       if (result.userProfile) setUserProfile(result.userProfile);
       setStep(2);
     } catch (err: any) {
@@ -567,6 +578,12 @@ export default function App() {
                 toast(`共有エラー: ${err.message}`);
               }
             }}
+            onAddPlan={(p) => { setPlans(prev => [...prev, p]); toast(`プラン「${p.label}」を追加しました`); }}
+            onMarkApproved={(planId) => {
+              setPlans(prev => prev.map(p => ({ ...p, approved: p.id === planId, approvedAt: p.id === planId ? new Date().toISOString() : p.approvedAt })));
+              toast('このプランを承認済みにしました');
+            }}
+            onAddAIPlans={() => { setStep(1); toast('情報源を選び直してAIで追加プランを生成してください'); }}
           />
 
           {/* エクスポート完了通知 */}

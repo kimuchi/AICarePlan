@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import type { GeneratedPlan, Table1Data, NeedItem, Table3Data } from '../types/plan.js';
+import type { GeneratedPlan, Table1Data, NeedItem, Table3Data, Table4Data, Table5Entry } from '../types/plan.js';
 
 const RESPONSE_SCHEMA_TABLE1 = {
   type: 'object' as const,
@@ -139,6 +139,79 @@ const RESPONSE_SCHEMA_TABLE3 = {
   required: ['plans'],
 };
 
+const RESPONSE_SCHEMA_TABLE4 = {
+  type: 'object' as const,
+  properties: {
+    plans: {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        properties: {
+          id: { type: 'string' as const },
+          table4: {
+            type: 'object' as const,
+            properties: {
+              date: { type: 'string' as const },
+              place: { type: 'string' as const },
+              duration: { type: 'string' as const },
+              count: { type: 'string' as const },
+              userAttendance: { type: 'string' as const },
+              familyAttendance: { type: 'string' as const },
+              attendees: {
+                type: 'array' as const,
+                items: {
+                  type: 'object' as const,
+                  properties: {
+                    affiliation: { type: 'string' as const },
+                    name: { type: 'string' as const },
+                  },
+                  required: ['affiliation', 'name'],
+                },
+              },
+              discussedItems: { type: 'string' as const },
+              discussionContent: { type: 'string' as const },
+              conclusion: { type: 'string' as const },
+              remainingTasks: { type: 'string' as const },
+            },
+            required: ['date', 'place', 'duration', 'count', 'userAttendance', 'familyAttendance', 'attendees', 'discussedItems', 'discussionContent', 'conclusion', 'remainingTasks'],
+          },
+        },
+        required: ['id', 'table4'],
+      },
+    },
+  },
+  required: ['plans'],
+};
+
+const RESPONSE_SCHEMA_TABLE5 = {
+  type: 'object' as const,
+  properties: {
+    plans: {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        properties: {
+          id: { type: 'string' as const },
+          table5: {
+            type: 'array' as const,
+            items: {
+              type: 'object' as const,
+              properties: {
+                date: { type: 'string' as const },
+                item: { type: 'string' as const },
+                content: { type: 'string' as const },
+              },
+              required: ['date', 'item', 'content'],
+            },
+          },
+        },
+        required: ['id', 'table5'],
+      },
+    },
+  },
+  required: ['plans'],
+};
+
 function getGenAI(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
@@ -242,6 +315,48 @@ export async function generateTable3(
       config: {
         responseMimeType: 'application/json',
         responseSchema: RESPONSE_SCHEMA_TABLE3 as any,
+        temperature: 0.8,
+      },
+    });
+    const text = response.text || '{"plans":[]}';
+    return JSON.parse(text).plans;
+  }, model);
+}
+
+/** Call Gemini with structured output for Table 4 */
+export async function generateTable4(
+  model: string,
+  prompt: string
+): Promise<Array<{ id: string; table4: Table4Data }>> {
+  return callWithRetry(async (m) => {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: m,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: RESPONSE_SCHEMA_TABLE4 as any,
+        temperature: 0.8,
+      },
+    });
+    const text = response.text || '{"plans":[]}';
+    return JSON.parse(text).plans;
+  }, model);
+}
+
+/** Call Gemini with structured output for Table 5 */
+export async function generateTable5(
+  model: string,
+  prompt: string
+): Promise<Array<{ id: string; table5: Table5Entry[] }>> {
+  return callWithRetry(async (m) => {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: m,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: RESPONSE_SCHEMA_TABLE5 as any,
         temperature: 0.8,
       },
     });

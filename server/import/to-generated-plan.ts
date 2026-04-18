@@ -63,7 +63,16 @@ export function toGeneratedPlan(data: CareplanImportData): GeneratedPlan {
           .filter(([,v]) => !!v)
           .map(([k,v]) => ({ day: k as any, startHour: sh, startMin: sm, endHour: sh + 1, endMin: sm, label: String(v || '') }));
       }),
-      dailyActivities: (data.table3.dailyActivities || '').split('\n').filter(Boolean).map(v => ({ time: '', activity: v })),
+      dailyActivities: (data.table3.dailyActivities || '').split('\n').filter(Boolean).map(v => {
+        const s = v.trim();
+        const m = /^(\d{1,2})\s*[:：]\s*(\d{1,2})\s*(.*)$/.exec(s);
+        if (m) {
+          const hh = m[1].padStart(2, '0');
+          const mm = m[2].padStart(2, '0');
+          return { time: `${hh}:${mm}`, activity: m[3].trim() };
+        }
+        return { time: '', activity: s };
+      }),
       weeklyService: empty(data.table3.weeklyExtraServices),
     },
     ...(table4 ? { table4 } : {}),

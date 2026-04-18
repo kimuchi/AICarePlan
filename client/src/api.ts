@@ -149,6 +149,10 @@ export interface GeneratedPlan {
   table5?: Array<{ date: string; item: string; content: string }>;
   /** 取込時のみ設定。サービス利用票等 */
   table6?: Array<Record<string, string>>;
+  /** このプランが承認済みの場合 true */
+  approved?: boolean;
+  /** 承認日時（ISO string） */
+  approvedAt?: string;
 }
 
 export type BusinessMode = 'kyotaku' | 'shoki';
@@ -402,8 +406,8 @@ export async function previewImport(files: File[]): Promise<ImportPreviewRespons
   return request('/api/import/preview', { method: 'POST', body: JSON.stringify({ files: payload }) });
 }
 
-export async function commitImport(items: any[]): Promise<{ results: any[]; bulkFastMode?: boolean }> {
-  return request('/api/import/commit', { method: 'POST', body: JSON.stringify({ items }) });
+export async function commitImport(items: any[], cleanOld = false): Promise<{ results: any[]; bulkFastMode?: boolean; cleanup?: { totalDeleted: number; totalKept: number; perUser: any[] } | null }> {
+  return request('/api/import/commit', { method: 'POST', body: JSON.stringify({ items, cleanOld }) });
 }
 
 export interface ImportCleanupResponse {

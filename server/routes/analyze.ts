@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getAccessToken } from '../auth.js';
 import { getSheetData, setSheetData } from '../lib/sheets.js';
 import { getJsonFileContent, getFileContentBase64, getDocContent } from '../lib/drive.js';
-import { generateTable1, generateTable2, generateTable3, analyzePdf, summarizeDocument, extractUserProfile } from '../lib/gemini.js';
+import { generateTable1, generateTable2, generateTable3, generateTable4, generateTable5, analyzePdf, summarizeDocument, extractUserProfile } from '../lib/gemini.js';
 import type { ExtractedUserProfile } from '../lib/gemini.js';
 import { buildVariables, expandPrompt, getPromptIds, truncateContent } from '../lib/promptBuilder.js';
 import type { BusinessMode, GeneratedPlan, UserInfo } from '../types/plan.js';
@@ -165,6 +165,8 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
     const table1Prompt = prompts[promptIds.table1] || '';
     const table2Prompt = prompts[promptIds.table2] || '';
     const table3Prompt = prompts[promptIds.table3] || '';
+    const table4Prompt = prompts[promptIds.table4] || '';
+    const table5Prompt = prompts[promptIds.table5] || '';
 
     if (!table1Prompt && !table2Prompt && !table3Prompt) {
       return res.status(400).json({ error: 'プロンプトが設定されていません。設定画面でプロンプトを入力してください。' });
@@ -173,6 +175,8 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
     const expandedT1 = expandPrompt(table1Prompt, variables);
     const expandedT2 = expandPrompt(table2Prompt, variables);
     const expandedT3 = expandPrompt(table3Prompt, variables);
+    const expandedT4 = expandPrompt(table4Prompt, variables);
+    const expandedT5 = expandPrompt(table5Prompt, variables);
 
     // ── Gemini呼び出し（3テーブル + プロフィール抽出を並列） ──
     // プロフィール抽出用のソーステキスト（フェイスシート・既存ケアプラン・アセスメント等を結合）
@@ -184,23 +188,27 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
       truncatedContents.medical,
     ].filter(Boolean).join('\n\n').slice(0, 20000);
 
-    const [table1Results, table2Results, table3Results, extractedProfile] = await Promise.all([
+    const [table1Results, table2Results, table3Results, table4Results, table5Results, extractedProfile] = await Promise.all([
       table1Prompt ? generateTable1(geminiModel, expandedT1) : Promise.resolve([]),
       table2Prompt ? generateTable2(geminiModel, expandedT2) : Promise.resolve([]),
       table3Prompt ? generateTable3(geminiModel, expandedT3) : Promise.resolve([]),
+      table4Prompt ? generateTable4(geminiModel, expandedT4) : Promise.resolve([]),
+      table5Prompt ? generateTable5(geminiModel, expandedT5) : Promise.resolve([]),
       profileSourceText
         ? extractUserProfile(analyzeModel, profileSourceText)
         : Promise.resolve(null),
     ]);
 
     // ── 結果マージ ──
-    const planCount = Math.max(table1Results.length, table2Results.length, table3Results.length);
+    const planCount = Math.max(table1Results.length, table2Results.length, table3Results.length, table4Results.length, table5Results.length);
     const plans: GeneratedPlan[] = [];
 
     for (let i = 0; i < planCount; i++) {
       const t1 = table1Results[i];
       const t2 = table2Results[i];
       const t3 = table3Results[i];
+      const t4 = table4Results[i];
+      const t5 = table5Results[i];
       plans.push({
         id: t1?.id || `P${i + 1}`,
         label: t1?.label || `プラン${i + 1}`,
@@ -211,6 +219,8 @@ analyzeRouter.post('/', async (req: Request, res: Response) => {
         },
         table2: t2?.table2 || [],
         table3: t3?.table3 || { schedule: [], dailyActivities: [], weeklyService: '' },
+        ...(t4?.table4 ? { table4: t4.table4 } : {}),
+        ...(t5?.table5 && t5.table5.length > 0 ? { table5: t5.table5 } : {}),
       });
     }
 
