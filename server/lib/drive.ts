@@ -1,4 +1,5 @@
 import { google, drive_v3 } from 'googleapis';
+import { Readable } from 'stream';
 
 /** Create an authenticated Drive client using user's access token */
 function getDriveClient(accessToken: string): drive_v3.Drive {
@@ -255,4 +256,67 @@ export async function createSpreadsheetInFolder(
     supportsAllDrives: true,
   });
   return res.data.id!;
+}
+
+/** Create a folder */
+export async function createFolder(accessToken: string, parentFolderId: string, folderName: string): Promise<string> {
+  const drive = getDriveClient(accessToken);
+  const res = await drive.files.create({
+    requestBody: { name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [parentFolderId] },
+    fields: 'id',
+    supportsAllDrives: true,
+  });
+  return res.data.id!;
+}
+
+/** upload arbitrary buffer file */
+export async function createFileFromBuffer(accessToken: string, parentFolderId: string, fileName: string, mimeType: string, body: Buffer): Promise<string> {
+  const drive = getDriveClient(accessToken);
+  const res = await drive.files.create({
+    requestBody: { name: fileName, parents: [parentFolderId] },
+    media: { mimeType, body: Readable.from(body) as any },
+    fields: 'id',
+    supportsAllDrives: true,
+  } as any);
+  return res.data.id!;
+}
+
+/** convert excel to google sheet */
+export async function createGoogleSheetFromExcel(accessToken: string, parentFolderId: string, fileName: string, body: Buffer): Promise<string> {
+  const drive = getDriveClient(accessToken);
+  const res = await drive.files.create({
+    requestBody: { name: fileName, mimeType: 'application/vnd.google-apps.spreadsheet', parents: [parentFolderId] },
+    media: { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', body: Readable.from(body) as any },
+    fields: 'id',
+    supportsAllDrives: true,
+  } as any);
+  return res.data.id!;
+}
+
+export async function getFileMeta(accessToken: string, fileId: string): Promise<{ id: string; name: string; modifiedTime?: string }> {
+  const drive = getDriveClient(accessToken);
+  const res = await drive.files.get({ fileId, fields: 'id,name,modifiedTime', supportsAllDrives: true });
+  return { id: res.data.id!, name: res.data.name!, modifiedTime: res.data.modifiedTime || undefined };
+}
+
+export async function renameStarTab(accessToken: string, spreadsheetId: string, nextStarTitle: string): Promise<void> {
+  const auth = new google.auth.OAuth2();
+  auth.setCredentials({ access_token: accessToken });
+  const sheets = google.sheets({ version: 'v4', auth });
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const tabs = meta.data.sheets || [];
+  const requests: any[] = [];
+  for (const s of tabs) {
+    const title = s.properties?.title || '';
+    const sid = s.properties?.sheetId;
+    if (sid == null) continue;
+    if (title.startsWith('★')) {
+      requests.push({ updateSheetProperties: { properties: { sheetId: sid, title: title.replace(/^★/, '') }, fields: 'title' } });
+    }
+  }
+  const target = tabs[0];
+  if (target?.properties?.sheetId != null) {
+    requests.push({ updateSheetProperties: { properties: { sheetId: target.properties.sheetId, title: nextStarTitle }, fields: 'title' } });
+  }
+  if (requests.length) await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } });
 }

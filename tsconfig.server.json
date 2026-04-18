@@ -14,6 +14,10 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["server/**/*"],
-  "exclude": ["node_modules"]
+  "include": [
+    "server/**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

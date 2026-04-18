@@ -7,6 +7,7 @@ import Help from './views/Help';
 import UserSelect from './views/Create/UserSelect';
 import SourceSelect from './views/Create/SourceSelect';
 import PlanEdit from './views/Create/PlanEdit';
+import ImportPage from './views/ImportPage';
 import {
   getMe, logout as apiLogout,
   fetchSourceContents, analyzeSources, exportToSheets,
@@ -80,7 +81,7 @@ function buildExistingPlanFromJson(data: any): GeneratedPlan | null {
 export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'create' | 'help'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'create' | 'help' | 'import'>('home');
   const [step, setStep] = useState(0);
   const [showToast, setShowToast] = useState<string | null>(null);
 
@@ -428,6 +429,29 @@ export default function App() {
         {ToastEl}
         <Help onBack={() => setCurrentView('home')} />
       </>
+    );
+  }
+
+  // Import
+  if (currentView === 'import') {
+    return (
+      <div style={S.root}>
+        {ToastEl}
+        <header style={S.header}>
+          <button style={S.backBtn} onClick={() => setCurrentView('home')}>
+            &larr; ホーム
+          </button>
+          <h1 style={S.headerTitle}>Excel取り込み</h1>
+          <div style={{ width: 60 }} />
+        </header>
+        <main style={S.createMain}>
+          <ImportPage
+            onBack={() => setCurrentView('home')}
+            toast={toast}
+            onOpenDraft={handleLoadPlan}
+          />
+        </main>
+      </div>
     );
   }
 
