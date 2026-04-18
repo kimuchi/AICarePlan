@@ -21,8 +21,27 @@ export async function parseXlsxWithStdlib(buffer: Buffer): Promise<{ sheets: Raw
   await writeFile(tmp, buffer, { mode: 0o600 });
   try {
     const script = path.resolve(process.cwd(), 'server/import/parse_xlsx_stdlib.py');
-    const { stdout } = await execFileAsync('python', [script, tmp], { maxBuffer: 20 * 1024 * 1024 });
-    return JSON.parse(stdout || '{}');
+    const pythonCommands = [process.env.PYTHON_BIN, 'python3', 'python', 'py'].filter((v): v is string => !!v);
+    let lastError: unknown = null;
+
+    for (const command of pythonCommands) {
+      try {
+        const args = command === 'py' ? ['-3', script, tmp] : [script, tmp];
+        const { stdout } = await execFileAsync(command, args, { maxBuffer: 20 * 1024 * 1024 });
+        return JSON.parse(stdout || '{}');
+      } catch (e: any) {
+        if (e?.code === 'ENOENT') {
+          lastError = e;
+          continue;
+        }
+        throw e;
+      }
+    }
+
+    const tried = pythonCommands.join(', ');
+    const err = new Error(`Python実行環境が見つかりませんでした（試行: ${tried || 'なし'}）。python3 などをインストールしてください`);
+    (err as any).cause = lastError;
+    throw err;
   } finally {
     await unlink(tmp).catch(() => {});
   }
