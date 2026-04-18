@@ -384,7 +384,7 @@ export async function previewImport(files: File[]): Promise<ImportPreviewRespons
   return request('/api/import/preview', { method: 'POST', body: JSON.stringify({ files: payload }) });
 }
 
-export async function commitImport(items: any[]): Promise<{ results: any[] }> {
+export async function commitImport(items: any[]): Promise<{ results: any[]; bulkFastMode?: boolean }> {
   return request('/api/import/commit', { method: 'POST', body: JSON.stringify({ items }) });
 }
 

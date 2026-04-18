@@ -30,7 +30,7 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
       }));
       const r = await commitImport(req);
       setResults(r.results || []);
-      toast('取り込み完了');
+      toast(r.bulkFastMode ? '取り込み完了（一括高速モード）' : '取り込み完了');
     } catch (e: any) {
       toast(`取り込み失敗: ${e.message}`);
     } finally { setCommitting(false); }

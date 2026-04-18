@@ -11,6 +11,7 @@ export async function placeCareplanArtifacts(params: {
   parsed: any;
   overwriteDraft?: boolean;
   actorEmail?: string;
+  skipSheetConversion?: boolean;
 }) {
   const { token, userFolderId, userName, originalName, excelBuffer, parsed } = params;
   const messages: string[] = [];
@@ -20,12 +21,17 @@ export async function placeCareplanArtifacts(params: {
   const excelId = await createFileFromBuffer(token, careplanFolderId, originalName, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', excelBuffer);
   const sheetName = `ケアプラン_${userName.replace(/\s+/g,'')}_${date}`;
   let sheetId = '';
-  try {
-    sheetId = await createGoogleSheetFromExcel(token, careplanFolderId, sheetName, excelBuffer);
-    await renameStarTab(token, sheetId, '★第1表');
-  } catch (e: any) {
-    messages.push(`Excel→Sheets変換に失敗したため空の代替シートを作成しました: ${e.message}`);
+  if (params.skipSheetConversion) {
+    messages.push('一括取込高速モードのため、Excel→Sheets変換をスキップしました');
     sheetId = await createSpreadsheetInFolder(token, careplanFolderId, `${sheetName}_代替`);
+  } else {
+    try {
+      sheetId = await createGoogleSheetFromExcel(token, careplanFolderId, sheetName, excelBuffer);
+      await renameStarTab(token, sheetId, '★第1表');
+    } catch (e: any) {
+      messages.push(`Excel→Sheets変換に失敗したため空の代替シートを作成しました: ${e.message}`);
+      sheetId = await createSpreadsheetInFolder(token, careplanFolderId, `${sheetName}_代替`);
+    }
   }
   const generatedPlan = toGeneratedPlan(parsed);
   const jsonName = `解析結果_ケアプラン_${userName.replace(/\s+/g,'')}_${date}.json`;
@@ -55,6 +61,7 @@ export async function placeAssessmentArtifacts(params: {
   originalName: string;
   excelBuffer: Buffer;
   parsed: any;
+  skipSheetConversion?: boolean;
 }) {
   const { token, userFolderId, userName, originalName, excelBuffer, parsed } = params;
   const messages: string[] = [];
@@ -64,12 +71,17 @@ export async function placeAssessmentArtifacts(params: {
   const excelId = await createFileFromBuffer(token, userFolderId, originalName, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', excelBuffer);
   const sheetName = `フェイスシート_アセスメント_${userName}様`;
   let sheetId = '';
-  try {
-    sheetId = await createGoogleSheetFromExcel(token, userFolderId, sheetName, excelBuffer);
-    await renameStarTab(token, sheetId, '★フェイスシート');
-  } catch (e: any) {
-    messages.push(`Excel→Sheets変換に失敗したため空の代替シートを作成しました: ${e.message}`);
+  if (params.skipSheetConversion) {
+    messages.push('一括取込高速モードのため、Excel→Sheets変換をスキップしました');
     sheetId = await createSpreadsheetInFolder(token, userFolderId, `${sheetName}_代替`);
+  } else {
+    try {
+      sheetId = await createGoogleSheetFromExcel(token, userFolderId, sheetName, excelBuffer);
+      await renameStarTab(token, sheetId, '★フェイスシート');
+    } catch (e: any) {
+      messages.push(`Excel→Sheets変換に失敗したため空の代替シートを作成しました: ${e.message}`);
+      sheetId = await createSpreadsheetInFolder(token, userFolderId, `${sheetName}_代替`);
+    }
   }
   const jsonName = `解析結果_アセスメント_${userName.replace(/\s+/g,'')}_${date}.json`;
   const jsonId = await createFileFromBuffer(token, assessFolderId, jsonName, 'application/json', Buffer.from(JSON.stringify(parsed, null, 2), 'utf-8'));

@@ -13,6 +13,8 @@ declare module 'express-session' {
 }
 
 export const importRouter = Router();
+const BULK_FAST_MODE_THRESHOLD = 10;
+const COMMIT_CONCURRENCY = 3;
 
 function detectKind(fileName: string): 'careplan'|'assessment_facesheet'|'unknown' {
   if (/ケアプラン/i.test(fileName)) return 'careplan';
@@ -91,15 +93,16 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
     const token = getAccessToken(req);
     if (!token) return res.status(401).json({ error: 'No access token' });
     const items = (req.body?.items || []) as Array<any>;
-    const results: any[] = [];
+    const results: any[] = Array.from({ length: items.length }, () => ({}));
     const createdFolderByName = new Map<string, string>();
     const existingUsers = await listUserFoldersForImport(token);
+    const bulkFastMode = items.length >= BULK_FAST_MODE_THRESHOLD;
 
     const normalizeName = (name: string) => (name || '').replace(/[\s\u3000]+/g, '').replace(/様$/, '');
 
-    for (const it of items) {
+    const processItem = async (it: any, index: number) => {
       const cached = req.session.importTemp?.[it.fileId];
-      if (!cached || cached.expiresAt < Date.now()) { results.push({ fileId: it.fileId, ok: false, messages: ['一時ファイルが見つかりません'] }); continue; }
+      if (!cached || cached.expiresAt < Date.now()) { results[index] = { fileId: it.fileId, ok: false, messages: ['一時ファイルが見つかりません'] }; return; }
       try {
         let userFolderId = it.userFolderId as string;
         let userName = (it.userName || cached.parsed?.table1?.userName || cached.parsed?.faceSheet?.name || '').trim();
@@ -127,19 +130,25 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
           }
         }
 
-        if (!userFolderId) return res.status(400).json({ error: '利用者が未特定です' });
+        if (!userFolderId) throw new Error('利用者が未特定です');
         const buffer = Buffer.from(cached.buffer, 'base64');
         const artifacts = cached.kind === 'careplan'
-          ? await placeCareplanArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, overwriteDraft: !!it?.options?.overwriteDraft, actorEmail: req.session.user?.email })
+          ? await placeCareplanArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, overwriteDraft: !!it?.options?.overwriteDraft, actorEmail: req.session.user?.email, skipSheetConversion: bulkFastMode })
           : cached.kind === 'assessment_facesheet'
-            ? await placeAssessmentArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed })
+            ? await placeAssessmentArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, skipSheetConversion: bulkFastMode })
             : (() => { throw new Error('未対応ファイル種別です'); })();
-        results.push({ fileId: it.fileId, ok: true, artifacts, messages: artifacts?.messages || [] });
+        results[index] = { fileId: it.fileId, ok: true, artifacts, messages: artifacts?.messages || [] };
       } catch (e: any) {
-        results.push({ fileId: it.fileId, ok: false, messages: [e.message] });
+        results[index] = { fileId: it.fileId, ok: false, messages: [e.message] };
       }
+    };
+
+    for (let i = 0; i < items.length; i += COMMIT_CONCURRENCY) {
+      const batch = items.slice(i, i + COMMIT_CONCURRENCY);
+      await Promise.all(batch.map((it, idx) => processItem(it, i + idx)));
     }
-    res.json({ results });
+
+    res.json({ results, bulkFastMode });
   } catch (err: any) {
     console.error('Import commit error:', err.message);
     res.status(500).json({ error: '取り込みに失敗しました' });
