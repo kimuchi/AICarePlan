@@ -1,10 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuid } from 'uuid';
+import { google } from 'googleapis';
 import { getAccessToken } from '../auth.js';
 import { parseCareplanWorkbook } from '../import/parse-careplan.js';
 import { parseAssessmentWorkbook } from '../import/parse-assessment.js';
 import { listUserFoldersForImport, matchUser, createUserFolderTree, findUserFolderByNameForImport } from '../import/user-match.js';
 import { placeCareplanArtifacts, placeAssessmentArtifacts } from '../import/drive-place.js';
+import { findSubfolder, listFilesInFolder } from '../lib/drive.js';
 
 declare module 'express-session' {
   interface SessionData {
@@ -153,5 +155,104 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Import commit error:', err.message);
     res.status(500).json({ error: '取り込みに失敗しました' });
+  }
+});
+
+// ── Cleanup endpoint: keep only the latest import set per user (careplan/assessment) ──
+
+const CLEANUP_WINDOW_MS = 10 * 60 * 1000; // files within 10 minutes of the newest are kept as one set
+
+interface CleanupFileEntry {
+  id: string;
+  name: string;
+  modifiedTime: string;
+  parentName: string;
+}
+
+function isCareplanImport(name: string): boolean {
+  return /^解析結果_ケアプラン_/.test(name)
+    || /^ケアプラン_.+_\d{8}/.test(name)
+    || /ケアプラン.*\.xlsx?$/i.test(name);
+}
+
+function isAssessmentImport(name: string): boolean {
+  return /^解析結果_アセスメント_/.test(name)
+    || /^フェイスシート_アセスメント_/.test(name)
+    || /(アセスメント|フェイスシート).*\.xlsx?$/i.test(name);
+}
+
+function partitionByLatestSet(files: CleanupFileEntry[]): { keep: CleanupFileEntry[]; trash: CleanupFileEntry[] } {
+  if (files.length === 0) return { keep: [], trash: [] };
+  const sorted = [...files].sort((a, b) => (b.modifiedTime || '').localeCompare(a.modifiedTime || ''));
+  const newestTs = new Date(sorted[0].modifiedTime).getTime();
+  if (!Number.isFinite(newestTs)) return { keep: sorted, trash: [] };
+  const keep: CleanupFileEntry[] = [];
+  const trash: CleanupFileEntry[] = [];
+  for (const f of sorted) {
+    const ts = new Date(f.modifiedTime).getTime();
+    if (Number.isFinite(ts) && newestTs - ts <= CLEANUP_WINDOW_MS) keep.push(f);
+    else trash.push(f);
+  }
+  return { keep, trash };
+}
+
+importRouter.post('/cleanup', async (req: Request, res: Response) => {
+  try {
+    const token = getAccessToken(req);
+    if (!token) return res.status(401).json({ error: 'No access token' });
+    const auth = new google.auth.OAuth2();
+    auth.setCredentials({ access_token: token });
+    const drive = google.drive({ version: 'v3', auth });
+
+    const users = await listUserFoldersForImport(token);
+    const perUser: Array<{ userName: string; careplan: { kept: number; deleted: number; deletedNames: string[] }; assessment: { kept: number; deleted: number; deletedNames: string[] } }> = [];
+    let totalDeleted = 0;
+    let totalKept = 0;
+
+    for (const u of users) {
+      const careplanFolderId = await findSubfolder(token, u.folderId, '01_居宅サービス計画書');
+      const assessFolderId = await findSubfolder(token, u.folderId, '05_アセスメントシート');
+
+      const careplanFiles: CleanupFileEntry[] = [];
+      if (careplanFolderId) {
+        const list = await listFilesInFolder(token, careplanFolderId);
+        for (const f of list) if (isCareplanImport(f.name)) careplanFiles.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, parentName: '01_居宅サービス計画書' });
+      }
+
+      const assessmentFiles: CleanupFileEntry[] = [];
+      const rootList = await listFilesInFolder(token, u.folderId);
+      for (const f of rootList) if (isAssessmentImport(f.name)) assessmentFiles.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, parentName: u.folderName });
+      if (assessFolderId) {
+        const list = await listFilesInFolder(token, assessFolderId);
+        for (const f of list) if (isAssessmentImport(f.name)) assessmentFiles.push({ id: f.id, name: f.name, modifiedTime: f.modifiedTime, parentName: '05_アセスメントシート' });
+      }
+
+      const cp = partitionByLatestSet(careplanFiles);
+      const as = partitionByLatestSet(assessmentFiles);
+
+      for (const target of [...cp.trash, ...as.trash]) {
+        try {
+          await drive.files.update({ fileId: target.id, requestBody: { trashed: true }, supportsAllDrives: true });
+        } catch (e: any) {
+          console.warn('[import/cleanup] trash failed:', target.name, e.message);
+        }
+      }
+      const cpDeleted = cp.trash.length;
+      const asDeleted = as.trash.length;
+      totalDeleted += cpDeleted + asDeleted;
+      totalKept += cp.keep.length + as.keep.length;
+      if (cpDeleted + asDeleted + cp.keep.length + as.keep.length > 0) {
+        perUser.push({
+          userName: u.folderName,
+          careplan: { kept: cp.keep.length, deleted: cpDeleted, deletedNames: cp.trash.map(f => f.name) },
+          assessment: { kept: as.keep.length, deleted: asDeleted, deletedNames: as.trash.map(f => f.name) },
+        });
+      }
+    }
+
+    res.json({ totalDeleted, totalKept, userCount: users.length, perUser });
+  } catch (err: any) {
+    console.error('Import cleanup error:', err.message);
+    res.status(500).json({ error: 'クリーンアップに失敗しました' });
   }
 });

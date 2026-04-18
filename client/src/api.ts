@@ -406,6 +406,21 @@ export async function commitImport(items: any[]): Promise<{ results: any[]; bulk
   return request('/api/import/commit', { method: 'POST', body: JSON.stringify({ items }) });
 }
 
+export interface ImportCleanupResponse {
+  totalDeleted: number;
+  totalKept: number;
+  userCount: number;
+  perUser: Array<{
+    userName: string;
+    careplan: { kept: number; deleted: number; deletedNames: string[] };
+    assessment: { kept: number; deleted: number; deletedNames: string[] };
+  }>;
+}
+
+export async function cleanupImports(): Promise<ImportCleanupResponse> {
+  return request('/api/import/cleanup', { method: 'POST' });
+}
+
 export async function getCareplanLatest(folderId: string): Promise<any> {
   return request(`/api/users/${folderId}/careplan-latest`);
 }
