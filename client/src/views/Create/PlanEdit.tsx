@@ -5,6 +5,7 @@ import { getSystemUsers } from '../../api';
 import Table1View from './Table1View';
 import Table2View from './Table2View';
 import Table3View from './Table3View';
+import ReferencePanel from '../../components/reference/ReferencePanel';
 
 interface UserMeta {
   name: string;
@@ -33,6 +34,7 @@ interface Props {
   currentPlanId?: string | null;
   currentSharedWith?: string;
   onShare?: (planId: string, emails: string) => Promise<void> | void;
+  clientFolderId?: string;
 }
 
 const PLAN_COLORS: Record<string, string> = { P1: '#2563eb', P2: '#059669', P3: '#d97706' };
@@ -45,7 +47,7 @@ interface Snapshot {
 
 export default function PlanEdit({
   plans, existingPlan, userMeta: initialUserMeta, planMeta: initialPlanMeta, mode,
-  onSave, currentPlanId, currentSharedWith, onShare,
+  onSave, currentPlanId, currentSharedWith, onShare, clientFolderId,
 }: Props) {
   const [activePlanId, setActivePlanId] = useState(plans.length > 0 ? plans[0].id : (existingPlan ? 'EXISTING' : ''));
   const [activeTable, setActiveTable] = useState<'table1' | 'table2' | 'table3'>('table1');
@@ -179,6 +181,8 @@ export default function PlanEdit({
       {activeTable === 'table3' && (
         <Table3View plan={activePlan} userName={editedUserMeta.name} meta={editedPlanMeta} onUpdate={handleTable3Update} />
       )}
+
+      <ReferencePanel folderId={clientFolderId} />
 
       {/* 共有情報表示 + 共有ダイアログ */}
       {currentSharedWith && !showShareDialog && (
