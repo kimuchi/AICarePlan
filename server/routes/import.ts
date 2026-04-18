@@ -133,7 +133,7 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
         }
         const buffer = Buffer.from(cached.buffer, 'base64');
         const artifacts = cached.kind === 'careplan'
-          ? await placeCareplanArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, overwriteDraft: !!it?.options?.overwriteDraft, actorEmail: req.session.user?.email })
+          ? await placeCareplanArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, overwriteDraft: !!it?.options?.overwriteDraft, actorEmail: req.session.user?.email, forceMode: it?.options?.forceMode })
           : cached.kind === 'assessment_facesheet'
             ? await placeAssessmentArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed })
             : (() => { throw new Error('未対応ファイル種別です'); })();

@@ -11,6 +11,7 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
   const [committing, setCommitting] = useState(false);
   const [results, setResults] = useState<any[] | null>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const [forceMode, setForceMode] = useState<'auto' | 'shoki' | 'kyotaku'>('auto');
 
   const doPreview = async () => {
     if (!files.length) return;
@@ -29,7 +30,7 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
         fileName: p.fileName,
         userFolderId: p.userMatch?.folderId || null,
         userName: p.extractedUser?.name || '',
-        options: { autoCreateMissing: true },
+        options: { autoCreateMissing: true, forceMode: forceMode === 'auto' ? undefined : forceMode },
       }));
       const r = await commitImport(req);
       setResults(r.results || []);
@@ -51,6 +52,14 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
       <p style={S.stepDesc}>ケアプラン / フェイスシート・アセスメントのExcelを複数アップロードできます。</p>
       <div style={{ ...S.settingsPanel, marginBottom: 16 }}>
         <input type="file" accept=".xlsx" multiple onChange={e => setFiles(Array.from(e.target.files || []))} />
+        <div style={{ marginTop: 10 }}>
+          <label style={{ fontSize: 12, color: '#334155' }}>事業種別（ケアプラン取り込み時）:</label>{' '}
+          <select value={forceMode} onChange={e => setForceMode(e.target.value as any)} style={{ ...S.input, width: 240, display: 'inline-block', marginLeft: 8 }}>
+            <option value="auto">自動判定</option>
+            <option value="shoki">小規模多機能</option>
+            <option value="kyotaku">居宅介護支援</option>
+          </select>
+        </div>
         <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
           <button style={S.primaryBtn} onClick={doPreview} disabled={!files.length || loading}>{loading ? '解析中...' : 'プレビュー作成'}</button>
           <button style={S.secondaryBtn} onClick={onBack}>戻る</button>

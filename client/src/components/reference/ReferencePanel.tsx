@@ -21,7 +21,7 @@ export default function ReferencePanel({ folderId }: { folderId?: string }) {
       {open && (
         <div style={{ marginTop: 8, fontSize: 12, whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto' }}>
           <div><b>ケアプラン拡張情報</b></div>
-          <pre>{JSON.stringify(careplan?.data?.table4 || careplan?.data?.table5 || careplan?.data?.monitoring || { found: false }, null, 2)}</pre>
+          <pre>{JSON.stringify(careplan?.data || { found: false }, null, 2)}</pre>
           <div><b>フェイスシート・アセスメント</b></div>
           <pre>{JSON.stringify(assessment?.data || { found: false }, null, 2)}</pre>
         </div>
