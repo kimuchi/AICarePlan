@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { S } from '../styles';
-import { previewImport, commitImport, getUsers } from '../api';
+import { previewImport, commitImport } from '../api';
 
 interface Props { onBack: () => void; toast: (msg: string) => void; onOpenDraft?: (planId: string) => void; }
 
@@ -22,7 +22,12 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
   const doCommit = async () => {
     setCommitting(true);
     try {
-      const req = preview.map(p => ({ fileId: p.fileId, userFolderId: p.userMatch?.folderId || null, userName: p.extractedUser?.name || '' }));
+      const req = preview.map(p => ({
+        fileId: p.fileId,
+        userFolderId: p.userMatch?.folderId || null,
+        userName: p.extractedUser?.name || '',
+        options: { autoCreateMissing: true },
+      }));
       const r = await commitImport(req);
       setResults(r.results || []);
       toast('取り込み完了');
@@ -46,6 +51,9 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
       {preview.length > 0 && (
         <div style={S.settingsPanel}>
           <h3 style={S.sectionTitle}>プレビュー</h3>
+          <div style={{ marginBottom: 10, fontSize: 12, color: '#334155' }}>
+            合計 {preview.length} ファイル（未一致利用者は取り込み時に自動で新規作成）
+          </div>
           {preview.map((p, i) => (
             <div key={p.fileId || i} style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, marginBottom: 10 }}>
               <div><b>{p.fileName}</b></div>
