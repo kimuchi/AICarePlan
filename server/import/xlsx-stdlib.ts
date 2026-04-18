@@ -38,10 +38,10 @@ export async function parseXlsxWithStdlib(buffer: Buffer): Promise<{ sheets: Raw
       }
     }
 
-    const tried = pythonCommands.join(', ');
-    const err = new Error(`Python実行環境が見つかりませんでした（試行: ${tried || 'なし'}）。python3 などをインストールしてください`);
-    (err as any).cause = lastError;
-    throw err;
+    const tried = pythonCommands.join(', ') || 'なし';
+    console.warn(`[import] Python runtime not found. tried=${tried}. Falling back to empty workbook parse.`);
+    if (lastError) console.warn(lastError);
+    return { sheets: [] };
   } finally {
     await unlink(tmp).catch(() => {});
   }
