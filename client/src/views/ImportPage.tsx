@@ -10,6 +10,7 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
   const [loading, setLoading] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [results, setResults] = useState<any[] | null>(null);
+  const [commitError, setCommitError] = useState<string | null>(null);
 
   const doPreview = async () => {
     if (!files.length) return;
@@ -21,6 +22,7 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
 
   const doCommit = async () => {
     setCommitting(true);
+    setCommitError(null);
     try {
       const req = preview.map(p => ({
         fileId: p.fileId,
@@ -31,9 +33,15 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
       }));
       const r = await commitImport(req);
       setResults(r.results || []);
+      const failed = (r.results || []).filter((x: any) => !x.ok).length;
+      if (failed > 0) {
+        setCommitError(`${failed}件のファイルで取り込みに失敗しました。下の結果詳細を確認してください。`);
+      }
       toast('取り込み完了');
     } catch (e: any) {
-      toast(`取り込み失敗: ${e.message}`);
+      const msg = `取り込みAPIでエラー: ${e.message || '不明なエラー'}`;
+      setCommitError(msg);
+      toast(msg);
     } finally { setCommitting(false); }
   };
 
@@ -65,6 +73,16 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
             </div>
           ))}
           <button style={S.primaryBtn} onClick={doCommit} disabled={committing}>{committing ? '取り込み中...' : 'この内容で取り込む'}</button>
+        </div>
+      )}
+
+      {commitError && (
+        <div style={{ ...S.settingsPanel, marginTop: 16, border: '1px solid #fecaca', background: '#fff7f7' }}>
+          <h3 style={{ ...S.sectionTitle, marginTop: 0, color: '#b91c1c' }}>取り込みエラー</h3>
+          <div style={{ fontSize: 13, color: '#7f1d1d', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{commitError}</div>
+          <div style={{ marginTop: 10, fontSize: 12, color: '#7f1d1d' }}>
+            ファイル・利用者対応・Google Drive権限を確認して再実行してください。結果詳細は下に残ります。
+          </div>
         </div>
       )}
 

@@ -127,7 +127,10 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
           }
         }
 
-        if (!userFolderId) return res.status(400).json({ error: '利用者が未特定です' });
+        if (!userFolderId) {
+          results.push({ fileId: it.fileId, fileName: cached.fileName, ok: false, messages: ['利用者が未特定のため取り込みできませんでした'] });
+          continue;
+        }
         const buffer = Buffer.from(cached.buffer, 'base64');
         const artifacts = cached.kind === 'careplan'
           ? await placeCareplanArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, overwriteDraft: !!it?.options?.overwriteDraft, actorEmail: req.session.user?.email })
