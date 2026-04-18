@@ -70,7 +70,6 @@ importRouter.post('/preview', async (req: Request, res: Response) => {
       const fallbackName = extractNameFromFileName(f.name, kind);
       if (!extractedUser?.name && fallbackName) {
         extractedUser = { ...extractedUser, name: fallbackName };
-        warnings.push('Excel本文から利用者名を抽出できなかったため、ファイル名から推定しました');
       }
 
       const fileId = `tmp-${uuid()}`;
@@ -135,7 +134,7 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
           : cached.kind === 'assessment_facesheet'
             ? await placeAssessmentArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed })
             : (() => { throw new Error('未対応ファイル種別です'); })();
-        results.push({ fileId: it.fileId, ok: true, artifacts, messages: [] });
+        results.push({ fileId: it.fileId, ok: true, artifacts, messages: artifacts?.messages || [] });
       } catch (e: any) {
         results.push({ fileId: it.fileId, ok: false, messages: [e.message] });
       }

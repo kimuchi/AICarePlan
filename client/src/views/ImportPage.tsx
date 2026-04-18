@@ -75,6 +75,11 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
               <div>{r.ok ? '✅' : '❌'} {r.fileId}</div>
               {r.artifacts?.sheetUrl && <a href={r.artifacts.sheetUrl} target="_blank" rel="noreferrer">Google Sheets</a>}
               {r.artifacts?.draftId && onOpenDraft && <button style={{ ...S.smallBtn, marginLeft: 8 }} onClick={() => onOpenDraft!(r.artifacts.draftId)}>編集画面を開く</button>}
+              {Array.isArray(r.messages) && r.messages.length > 0 && (
+                <div style={{ marginTop: 6, color: '#92400e', fontSize: 12 }}>
+                  {r.messages.join(' / ')}
+                </div>
+              )}
             </div>
           ))}
         </div>

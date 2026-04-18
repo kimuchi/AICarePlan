@@ -1,4 +1,5 @@
 import { google, drive_v3 } from 'googleapis';
+import { Readable } from 'stream';
 
 /** Create an authenticated Drive client using user's access token */
 function getDriveClient(accessToken: string): drive_v3.Drive {
@@ -273,7 +274,7 @@ export async function createFileFromBuffer(accessToken: string, parentFolderId: 
   const drive = getDriveClient(accessToken);
   const res = await drive.files.create({
     requestBody: { name: fileName, parents: [parentFolderId] },
-    media: { mimeType, body: Buffer.from(body) as any },
+    media: { mimeType, body: Readable.from(body) as any },
     fields: 'id',
     supportsAllDrives: true,
   } as any);
@@ -285,7 +286,7 @@ export async function createGoogleSheetFromExcel(accessToken: string, parentFold
   const drive = getDriveClient(accessToken);
   const res = await drive.files.create({
     requestBody: { name: fileName, mimeType: 'application/vnd.google-apps.spreadsheet', parents: [parentFolderId] },
-    media: { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', body: Buffer.from(body) as any },
+    media: { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', body: Readable.from(body) as any },
     fields: 'id',
     supportsAllDrives: true,
   } as any);
