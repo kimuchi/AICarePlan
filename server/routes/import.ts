@@ -13,6 +13,8 @@ declare module 'express-session' {
 }
 
 export const importRouter = Router();
+const BULK_FAST_MODE_THRESHOLD = 10;
+const COMMIT_CONCURRENCY = 3;
 
 function detectKind(fileName: string): 'careplan'|'assessment_facesheet'|'unknown' {
   if (/ケアプラン/i.test(fileName)) return 'careplan';
@@ -131,7 +133,7 @@ importRouter.post('/commit', async (req: Request, res: Response) => {
         if (!userFolderId) throw new Error('利用者が未特定です');
         const buffer = Buffer.from(cached.buffer, 'base64');
         const artifacts = cached.kind === 'careplan'
-          ? await placeCareplanArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, overwriteDraft: !!it?.options?.overwriteDraft, actorEmail: req.session.user?.email, skipSheetConversion: bulkFastMode })
+          ? await placeCareplanArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, overwriteDraft: !!it?.options?.overwriteDraft, actorEmail: req.session.user?.email, skipSheetConversion: bulkFastMode, forceMode: it?.options?.forceMode })
           : cached.kind === 'assessment_facesheet'
             ? await placeAssessmentArtifacts({ token, userFolderId, userName: userName || '利用者', originalName: cached.fileName, excelBuffer: buffer, parsed: cached.parsed, skipSheetConversion: bulkFastMode })
             : (() => { throw new Error('未対応ファイル種別です'); })();

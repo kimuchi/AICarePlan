@@ -1,5 +1,5 @@
 import { appendSheetData } from '../lib/sheets.js';
-import { createFileFromBuffer, createGoogleSheetFromExcel, createSpreadsheetInFolder, findSubfolder, renameStarTab } from '../lib/drive.js';
+import { createFileFromBuffer, createGoogleSheetFromExcel, createSpreadsheetInFolder, findSubfolder, renameStarTab, trashFilesByName } from '../lib/drive.js';
 import { toGeneratedPlan } from './to-generated-plan.js';
 
 export async function placeCareplanArtifacts(params: {
@@ -12,6 +12,7 @@ export async function placeCareplanArtifacts(params: {
   overwriteDraft?: boolean;
   actorEmail?: string;
   skipSheetConversion?: boolean;
+  forceMode?: 'kyotaku' | 'shoki';
 }) {
   const { token, userFolderId, userName, originalName, excelBuffer, parsed } = params;
   const messages: string[] = [];
