@@ -1,5 +1,5 @@
 import { appendSheetData } from '../lib/sheets.js';
-import { createFileFromBuffer, createGoogleSheetFromExcel, findSubfolder, renameStarTab, trashFilesByName } from '../lib/drive.js';
+import { createFileFromBuffer, createGoogleSheetFromExcel, createSpreadsheetInFolder, findSubfolder, renameStarTab } from '../lib/drive.js';
 import { toGeneratedPlan } from './to-generated-plan.js';
 
 export async function placeCareplanArtifacts(params: {
@@ -11,9 +11,10 @@ export async function placeCareplanArtifacts(params: {
   parsed: any;
   overwriteDraft?: boolean;
   actorEmail?: string;
-  forceMode?: 'kyotaku' | 'shoki';
+  skipSheetConversion?: boolean;
 }) {
   const { token, userFolderId, userName, originalName, excelBuffer, parsed } = params;
+  const messages: string[] = [];
   const careplanFolderId = await findSubfolder(token, userFolderId, '01_居宅サービス計画書');
   if (!careplanFolderId) throw new Error('01_居宅サービス計画書 not found');
   const date = new Date().toISOString().slice(0,10).replace(/-/g,'');
@@ -39,6 +40,7 @@ export async function placeCareplanArtifacts(params: {
     sheetUrl: sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}` : '',
     analysisJsonUrl: `https://drive.google.com/file/d/${jsonId}/view`,
     draftId,
+    messages,
   };
 }
 
@@ -49,8 +51,10 @@ export async function placeAssessmentArtifacts(params: {
   originalName: string;
   excelBuffer: Buffer;
   parsed: any;
+  skipSheetConversion?: boolean;
 }) {
   const { token, userFolderId, userName, originalName, excelBuffer, parsed } = params;
+  const messages: string[] = [];
   const assessFolderId = await findSubfolder(token, userFolderId, '05_アセスメントシート');
   if (!assessFolderId) throw new Error('05_アセスメントシート not found');
   const date = new Date().toISOString().slice(0,10).replace(/-/g,'');
@@ -65,5 +69,6 @@ export async function placeAssessmentArtifacts(params: {
     originalExcelUrl: `https://drive.google.com/file/d/${excelId}/view`,
     sheetUrl: sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}` : '',
     analysisJsonUrl: `https://drive.google.com/file/d/${jsonId}/view`,
+    messages,
   };
 }
