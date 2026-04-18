@@ -66,6 +66,29 @@ export default function Table2View({ plan, userName, meta, mode, onUpdate }: Pro
     update(u);
   };
 
+  const moveNeed = (ni: number, dir: -1 | 1) => {
+    const ti = ni + dir;
+    if (ti < 0 || ti >= t2.length) return;
+    const u = [...t2]; [u[ni], u[ti]] = [u[ti], u[ni]]; update(u);
+  };
+  const moveGoal = (ni: number, gi: number, dir: -1 | 1) => {
+    const goals = [...t2[ni].goals];
+    const ti = gi + dir;
+    if (ti < 0 || ti >= goals.length) return;
+    [goals[gi], goals[ti]] = [goals[ti], goals[gi]];
+    const u = [...t2]; u[ni] = { ...u[ni], goals }; update(u);
+  };
+  const moveService = (ni: number, gi: number, si: number, dir: -1 | 1) => {
+    const services = [...t2[ni].goals[gi].services];
+    const ti = si + dir;
+    if (ti < 0 || ti >= services.length) return;
+    [services[si], services[ti]] = [services[ti], services[si]];
+    const u = [...t2];
+    const goals = [...u[ni].goals];
+    goals[gi] = { ...goals[gi], services };
+    u[ni] = { ...u[ni], goals }; update(u);
+  };
+
   const E = onUpdate != null; // editable
 
   return (
@@ -113,7 +136,13 @@ export default function Table2View({ plan, userName, meta, mode, onUpdate }: Pro
                       <td rowSpan={totalServiceRows + (E ? 1 : 0)} style={{ ...S.tdNeed, verticalAlign: 'top' }}>
                         {E ? <textarea style={{ ...inputStyle, minHeight: 60 }} value={item.need} onChange={e => updateNeed(ni, e.target.value)} />
                              : item.need}
-                        {E && <button style={btnDel} onClick={() => removeNeed(ni)}>ニーズ削除</button>}
+                        {E && (
+                          <div style={reorderRow}>
+                            <button style={btnMove} disabled={ni === 0} onClick={() => moveNeed(ni, -1)} title="このニーズを上へ移動">↑</button>
+                            <button style={btnMove} disabled={ni === t2.length - 1} onClick={() => moveNeed(ni, 1)} title="このニーズを下へ移動">↓</button>
+                            <button style={btnDelInline} onClick={() => removeNeed(ni)}>削除</button>
+                          </div>
+                        )}
                       </td>
                     )}
                     {si === 0 && (
@@ -157,18 +186,29 @@ export default function Table2View({ plan, userName, meta, mode, onUpdate }: Pro
                     <td style={{ ...S.tdService, fontSize: 11, position: 'relative' }}>
                       {E ? <input style={inputStyle} value={sv.period} onChange={e => updateService(ni, gi, si, 'period', e.target.value)} />
                            : <span style={{ whiteSpace: 'pre-line' }}>{sv.period}</span>}
-                      {E && <button style={{ ...btnDel, position: 'absolute', right: 2, top: 2, fontSize: 9, padding: '1px 4px' }} onClick={() => removeService(ni, gi, si)}>×</button>}
+                      {E && (
+                        <div style={svActions}>
+                          <button style={btnMoveSm} disabled={si === 0} onClick={() => moveService(ni, gi, si, -1)} title="このサービスを上へ">↑</button>
+                          <button style={btnMoveSm} disabled={si === svList.length - 1} onClick={() => moveService(ni, gi, si, 1)} title="このサービスを下へ">↓</button>
+                          <button style={btnDelSm} onClick={() => removeService(ni, gi, si)} title="このサービスを削除">×</button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );
               });
-              // サービス追加ボタン行
+              // サービス追加・目標並び替え行
               if (E) {
                 rows.push(
                   <tr key={`add-sv-${ni}-${gi}`}>
                     <td colSpan={6} style={{ border: '1px solid #e2e8f0', padding: '2px 4px' }}>
-                      <button style={btnAdd} onClick={() => addService(ni, gi)}>+ サービス追加</button>
-                      <button style={btnAdd} onClick={() => addGoal(ni)}>+ 目標追加</button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                        <button style={btnAdd} onClick={() => addService(ni, gi)}>+ サービス追加</button>
+                        <button style={btnAdd} onClick={() => addGoal(ni)}>+ 目標追加</button>
+                        <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 6 }}>目標{gi + 1}:</span>
+                        <button style={btnMove} disabled={gi === 0} onClick={() => moveGoal(ni, gi, -1)} title="この目標を上へ">↑</button>
+                        <button style={btnMove} disabled={gi === item.goals.length - 1} onClick={() => moveGoal(ni, gi, 1)} title="この目標を下へ">↓</button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -197,7 +237,28 @@ const btnAdd: React.CSSProperties = {
   background: 'none', border: '1px dashed #94a3b8', color: '#64748b',
   fontSize: 11, padding: '2px 8px', borderRadius: 4, cursor: 'pointer', marginRight: 4,
 };
-const btnDel: React.CSSProperties = {
-  background: 'none', border: 'none', color: '#dc2626',
-  fontSize: 10, cursor: 'pointer', padding: '2px 4px', marginTop: 4, display: 'block',
+const reorderRow: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 3, marginTop: 4, flexWrap: 'wrap',
+};
+const btnMove: React.CSSProperties = {
+  background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155',
+  fontSize: 11, lineHeight: 1, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
+  minWidth: 22,
+};
+const btnDelInline: React.CSSProperties = {
+  background: 'none', border: '1px solid #fecaca', color: '#dc2626',
+  fontSize: 10, padding: '2px 6px', borderRadius: 4, cursor: 'pointer',
+};
+const svActions: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-end',
+  marginTop: 2,
+};
+const btnMoveSm: React.CSSProperties = {
+  background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155',
+  fontSize: 9, lineHeight: 1, padding: '1px 4px', borderRadius: 3, cursor: 'pointer',
+  minWidth: 18,
+};
+const btnDelSm: React.CSSProperties = {
+  background: 'none', border: '1px solid #fecaca', color: '#dc2626',
+  fontSize: 9, lineHeight: 1, padding: '1px 4px', borderRadius: 3, cursor: 'pointer',
 };
