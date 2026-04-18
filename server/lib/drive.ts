@@ -320,3 +320,22 @@ export async function renameStarTab(accessToken: string, spreadsheetId: string, 
   }
   if (requests.length) await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } });
 }
+
+/** Trash files by exact name in a folder (used for replace semantics). */
+export async function trashFilesByName(
+  accessToken: string,
+  folderId: string,
+  fileName: string
+): Promise<void> {
+  const files = await listFilesInFolder(accessToken, folderId);
+  const target = files.filter(f => f.name === fileName);
+  if (target.length === 0) return;
+  const drive = getDriveClient(accessToken);
+  for (const f of target) {
+    await drive.files.update({
+      fileId: f.id,
+      requestBody: { trashed: true },
+      supportsAllDrives: true,
+    });
+  }
+}

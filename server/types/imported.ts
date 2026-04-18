@@ -59,6 +59,7 @@ export interface CareplanImportData {
     history: Array<{ date: string; result: string }>;
     sessions: MonitoringSession[];
   };
+  rawSheets?: Array<Record<string, any>>;
 }
 
 export interface AssessmentImportData {
@@ -68,4 +69,5 @@ export interface AssessmentImportData {
   anythingBox: Array<Record<string, any>>;
   doctorOpinion: Record<string, any>;
   certificationSurvey: Record<string, any>;
+  rawSheets?: Array<Record<string, any>>;
 }

@@ -7,7 +7,7 @@ export function toGeneratedPlan(data: CareplanImportData): GeneratedPlan {
   return {
     id: 'imported',
     label: 'I案（取込）',
-    summary: 'Excelから取り込んだ現行ケアプラン',
+    summary: 'Excelから取り込んだケアプラン（取込）',
     table1: {
       userWishes: empty(data.table1.assessmentResult),
       familyWishes: empty(data.table1.assessmentResult),
