@@ -432,6 +432,29 @@ export default function App() {
     );
   }
 
+  // Import
+  if (currentView === 'import') {
+    return (
+      <div style={S.root}>
+        {ToastEl}
+        <header style={S.header}>
+          <button style={S.backBtn} onClick={() => setCurrentView('home')}>
+            &larr; ホーム
+          </button>
+          <h1 style={S.headerTitle}>Excel取り込み</h1>
+          <div style={{ width: 60 }} />
+        </header>
+        <main style={S.createMain}>
+          <ImportPage
+            onBack={() => setCurrentView('home')}
+            toast={toast}
+            onOpenDraft={handleLoadPlan}
+          />
+        </main>
+      </div>
+    );
+  }
+
   // Create flow
   return (
     <div style={S.root}>
