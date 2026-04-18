@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import { writeFile, unlink } from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import { fileURLToPath } from 'url';
 
 const execFileAsync = promisify(execFile);
 
@@ -20,9 +21,29 @@ export async function parseXlsxWithStdlib(buffer: Buffer): Promise<{ sheets: Raw
   const tmp = path.join(os.tmpdir(), `import-${Date.now()}-${Math.random().toString(36).slice(2)}.xlsx`);
   await writeFile(tmp, buffer, { mode: 0o600 });
   try {
-    const script = path.resolve(process.cwd(), 'server/import/parse_xlsx_stdlib.py');
-    const { stdout } = await execFileAsync('python', [script, tmp], { maxBuffer: 20 * 1024 * 1024 });
-    return JSON.parse(stdout || '{}');
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const script = path.resolve(here, 'parse_xlsx_stdlib.py');
+    const pythonCommands = [process.env.PYTHON_BIN, 'python3', 'python', 'py'].filter((v): v is string => !!v);
+    let lastError: unknown = null;
+
+    for (const command of pythonCommands) {
+      try {
+        const args = command === 'py' ? ['-3', script, tmp] : [script, tmp];
+        const { stdout } = await execFileAsync(command, args, { maxBuffer: 20 * 1024 * 1024 });
+        return JSON.parse(stdout || '{}');
+      } catch (e: any) {
+        if (e?.code === 'ENOENT') {
+          lastError = e;
+          continue;
+        }
+        throw e;
+      }
+    }
+
+    const tried = pythonCommands.join(', ') || 'なし';
+    console.warn(`[import] Python runtime not found. tried=${tried}. Falling back to empty workbook parse.`);
+    if (lastError) console.warn(lastError);
+    return { sheets: [] };
   } finally {
     await unlink(tmp).catch(() => {});
   }

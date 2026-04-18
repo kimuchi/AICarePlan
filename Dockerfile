@@ -20,10 +20,14 @@ RUN npm run build:server
 FROM node:20-slim AS production
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 \
+  && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 COPY --from=client-build /app/dist/client ./dist/client
 COPY --from=server-build /app/dist/server ./dist/server
+COPY server/import/parse_xlsx_stdlib.py ./dist/server/import/parse_xlsx_stdlib.py
 COPY docs/ ./docs/
 EXPOSE 8080
 ENV PORT=8080
