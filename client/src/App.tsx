@@ -11,10 +11,9 @@ import ImportPage from './views/ImportPage';
 import {
   getMe, logout as apiLogout,
   fetchSourceContents, analyzeSources, exportToSheets,
-  getFacilities, savePlan, listPlans, loadPlan, extractExistingPlanFromFile,
+  getFacilities, savePlan, loadPlan, extractExistingPlanFromFile,
   type SessionUser, type UserFolder, type SourceFile,
   type GeneratedPlan, type BusinessMode, type Facility, type ExtractedUserProfile,
-  type SavedPlanSummary,
 } from './api';
 
 const STEPS = ['利用者選択', '情報源選択', 'プラン編集・エクスポート'];
@@ -99,7 +98,6 @@ export default function App() {
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
   const [currentSharedWith, setCurrentSharedWith] = useState('');
-  const [savedPlans, setSavedPlans] = useState<SavedPlanSummary[]>([]);
 
   // 事業所IDが変わったら事業所データを更新
   useEffect(() => {
@@ -146,7 +144,6 @@ export default function App() {
     setExportUrl(null);
     setCurrentPlanId(null);
     setCurrentSharedWith('');
-    setSavedPlans([]);
   };
 
   const handleLoadPlan = async (planId: string) => {
@@ -516,9 +513,25 @@ export default function App() {
             selectedUser={selectedUser}
             onSelect={setSelectedUser}
             onNext={() => setStep(1)}
-            savedPlans={savedPlans}
-            onSavedPlansChange={setSavedPlans}
             onLoadPlan={handleLoadPlan}
+            onOpenImported={(plan, clientFolderId, clientName, m) => {
+              const mm = (m === 'shoki' ? 'shoki' : 'kyotaku') as BusinessMode;
+              setPlans([plan]);
+              setExistingPlan(null);
+              setMode(mm);
+              setCurrentPlanId(null);
+              setCurrentSharedWith('');
+              setSelectedUser({
+                id: clientFolderId,
+                name: clientName,
+                folderName: `${clientName}様`,
+                folderId: clientFolderId,
+                hasConfidential: false,
+                modifiedTime: '',
+              } as any);
+              setStep(2);
+            }}
+            toast={toast}
           />
         )}
 

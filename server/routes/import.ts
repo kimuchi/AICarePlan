@@ -4,9 +4,10 @@ import { google } from 'googleapis';
 import { getAccessToken } from '../auth.js';
 import { parseCareplanWorkbook } from '../import/parse-careplan.js';
 import { parseAssessmentWorkbook } from '../import/parse-assessment.js';
-import { listUserFoldersForImport, matchUser, createUserFolderTree, findUserFolderByNameForImport } from '../import/user-match.js';
+import { listUserFoldersForImport, matchUser, createUserFolderTree, findUserFolderByNameForImport, normalizeName as normalizeUserName } from '../import/user-match.js';
 import { placeCareplanArtifacts, placeAssessmentArtifacts } from '../import/drive-place.js';
-import { findSubfolder, listFilesInFolder } from '../lib/drive.js';
+import { findSubfolder, listFilesInFolder, listSubfolders } from '../lib/drive.js';
+import { getSheetData, setSheetData } from '../lib/sheets.js';
 
 declare module 'express-session' {
   interface SessionData {
@@ -208,6 +209,123 @@ function partitionByLatestSet(files: CleanupFileEntry[]): { keep: CleanupFileEnt
   return { keep, trash };
 }
 
+/**
+ * ルート配下の利用者フォルダのうち、正規化名が同じものを「ふりがなプレフィックス付き」を残して統合する。
+ * ふりがな無しフォルダにファイルがあれば「ふりがな有り」フォルダ配下に再親付け（移動）し、空になったフォルダをゴミ箱へ。
+ */
+async function dedupeUserFolders(token: string): Promise<Array<{ kept: string; trashed: string; movedFiles: number }>> {
+  const rootFolderId = process.env.USER_ROOT_FOLDER_ID || '';
+  if (!rootFolderId) return [];
+  const auth = new google.auth.OAuth2();
+  auth.setCredentials({ access_token: token });
+  const drive = google.drive({ version: 'v3', auth });
+  const all = await listSubfolders(token, rootFolderId);
+  const groups = new Map<string, Array<{ id: string; name: string; modifiedTime: string }>>();
+  for (const f of all) {
+    const key = normalizeUserName(f.name);
+    if (!key) continue;
+    const arr = groups.get(key) || [];
+    arr.push(f);
+    groups.set(key, arr);
+  }
+  const merged: Array<{ kept: string; trashed: string; movedFiles: number }> = [];
+  for (const [, entries] of groups) {
+    if (entries.length < 2) continue;
+    // Prefer folder with furigana prefix "<kana>_"
+    const hasPrefix = (n: string) => /^[\p{sc=Hiragana}\p{sc=Katakana}ー]{1,4}_/u.test(n);
+    const keeper = entries.find(e => hasPrefix(e.name)) || entries.sort((a, b) => (b.modifiedTime || '').localeCompare(a.modifiedTime || ''))[0];
+    for (const e of entries) {
+      if (e.id === keeper.id) continue;
+      let moved = 0;
+      try {
+        const children = await listFilesInFolder(token, e.id);
+        for (const child of children) {
+          try {
+            await drive.files.update({ fileId: child.id, addParents: keeper.id, removeParents: e.id, supportsAllDrives: true });
+            moved++;
+          } catch (err: any) {
+            console.warn(`[folder-dedupe] move file failed: ${child.name} -> ${keeper.name}:`, err.message);
+          }
+        }
+        // subfolders: merge by name
+        const subs = await listSubfolders(token, e.id);
+        const keeperSubs = await listSubfolders(token, keeper.id);
+        for (const sub of subs) {
+          const target = keeperSubs.find(s => s.name === sub.name);
+          if (target) {
+            // merge contents
+            const items = await listFilesInFolder(token, sub.id);
+            for (const it of items) {
+              try {
+                await drive.files.update({ fileId: it.id, addParents: target.id, removeParents: sub.id, supportsAllDrives: true });
+                moved++;
+              } catch (err: any) {
+                console.warn(`[folder-dedupe] subfolder move failed: ${it.name}:`, err.message);
+              }
+            }
+            try { await drive.files.update({ fileId: sub.id, requestBody: { trashed: true }, supportsAllDrives: true }); } catch { /* ignore */ }
+          } else {
+            // re-parent whole subfolder
+            try {
+              await drive.files.update({ fileId: sub.id, addParents: keeper.id, removeParents: e.id, supportsAllDrives: true });
+            } catch (err: any) {
+              console.warn(`[folder-dedupe] subfolder reparent failed: ${sub.name}:`, err.message);
+            }
+          }
+        }
+        await drive.files.update({ fileId: e.id, requestBody: { trashed: true }, supportsAllDrives: true });
+        merged.push({ kept: keeper.name, trashed: e.name, movedFiles: moved });
+      } catch (err: any) {
+        console.warn(`[folder-dedupe] failed to merge ${e.name} into ${keeper.name}:`, err.message);
+      }
+    }
+  }
+  return merged;
+}
+
+async function pruneDraftsForFolders(
+  token: string,
+  folderIds: string[],
+): Promise<{ removed: number }> {
+  const sid = process.env.SETTINGS_SPREADSHEET_ID;
+  if (!sid || folderIds.length === 0) return { removed: 0 };
+  const rows = await getSheetData(sid, 'drafts!A:J', token);
+  if (!rows || rows.length <= 1) return { removed: 0 };
+  const header = rows[0];
+  const data = rows.slice(1);
+  // group by clientFolderId
+  const keepIds = new Set<number>();
+  const folderSet = new Set(folderIds);
+  const byFolder = new Map<string, Array<{ idx: number; row: any[] }>>();
+  for (let i = 0; i < data.length; i++) {
+    const fid = data[i][1] || '';
+    if (!folderSet.has(fid)) { keepIds.add(i); continue; }
+    const arr = byFolder.get(fid) || [];
+    arr.push({ idx: i, row: data[i] });
+    byFolder.set(fid, arr);
+  }
+  for (const [, entries] of byFolder) {
+    // Keep only the most recent (status !== 'trashed') row per folder
+    entries.sort((a, b) => (b.row[9] || '').localeCompare(a.row[9] || ''));
+    if (entries.length === 0) continue;
+    keepIds.add(entries[0].idx);
+    // also keep non-draft rows (status === 'completed' or with authorEmail — don't prune real saves)
+    for (const e of entries.slice(1)) {
+      const status = e.row[6] || '';
+      const authorEmail = e.row[3] || '';
+      if (status === 'completed' || status === 'approved' || authorEmail) keepIds.add(e.idx);
+    }
+  }
+  const kept = data.filter((_, i) => keepIds.has(i));
+  const removed = data.length - kept.length;
+  if (removed === 0) return { removed: 0 };
+  const next = [header, ...kept];
+  try { await setSheetData(token, sid, 'drafts!A1', next); } catch (err: any) {
+    console.warn('[drafts/prune] writeback failed:', err.message);
+  }
+  return { removed };
+}
+
 async function cleanupImportsForFolders(
   token: string,
   folderIds: string[],
@@ -264,7 +382,11 @@ async function cleanupImportsForFolders(
     }
   }
 
-  return { totalDeleted, totalKept, perUser };
+  // Also prune stale drafts rows for these users so Home's マイプラン doesn't keep showing old imports.
+  const pruneResult = await pruneDraftsForFolders(token, folderIds);
+  const folderMerges = await dedupeUserFolders(token);
+
+  return { totalDeleted, totalKept, perUser, draftsRemoved: pruneResult.removed, folderMerges };
 }
 
 importRouter.post('/cleanup', async (req: Request, res: Response) => {

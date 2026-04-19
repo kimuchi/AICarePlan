@@ -425,6 +425,29 @@ export async function cleanupImports(): Promise<ImportCleanupResponse> {
   return request('/api/import/cleanup', { method: 'POST' });
 }
 
+export interface ExistingPlansResponse {
+  drafts: Array<{
+    planId: string;
+    clientFolderId: string;
+    clientName: string;
+    authorEmail: string;
+    authorName: string;
+    mode: string;
+    status: string;
+    approved: boolean;
+    updatedAt: string;
+  }>;
+  archived: Record<string, Array<{ fileId: string; fileName: string; modifiedTime: string }>>;
+}
+
+export async function getExistingPlans(clientFolderId: string): Promise<ExistingPlansResponse> {
+  return request(`/api/plans/existing/${clientFolderId}`);
+}
+
+export async function loadArchiveFile(fileId: string): Promise<{ data: any }> {
+  return request(`/api/plans/archive-file/${fileId}`);
+}
+
 export async function getCareplanLatest(folderId: string): Promise<any> {
   return request(`/api/users/${folderId}/careplan-latest`);
 }

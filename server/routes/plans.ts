@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getAccessToken } from '../auth.js';
 import { getSheetData, setSheetData, appendSheetData } from '../lib/sheets.js';
-import { getFileContentBase64, getJsonFileContent, getDocContent } from '../lib/drive.js';
+import { getFileContentBase64, getJsonFileContent, getDocContent, listSubfolders, listFilesInFolder, findSubfolder } from '../lib/drive.js';
 import { extractExistingPlan } from '../lib/gemini.js';
 import { v4 as uuid } from 'uuid';
 
@@ -75,12 +75,25 @@ plansRouter.get('/my', async (req: Request, res: Response) => {
     const rows = await getSheetData(sid, 'drafts!A:J', token);
     if (!rows || rows.length <= 1) return res.json({ plans: [] });
 
+    // Only keep drafts whose client folder still exists (not trashed / deleted).
+    const rootFolderId = process.env.USER_ROOT_FOLDER_ID || '';
+    const activeFolderIds = new Set<string>();
+    if (rootFolderId) {
+      try {
+        const active = await listSubfolders(token, rootFolderId);
+        for (const f of active) activeFolderIds.add(f.id);
+      } catch { /* if listing fails, fall through and don't filter */ }
+    }
+
     const plans = rows.slice(1)
       .filter(row => {
         const isAuthor = row[3] === email;
         const sharedWith = (row[8] || '').split(',').map((s: string) => s.trim().toLowerCase());
         const isShared = sharedWith.includes(email.toLowerCase()) || sharedWith.includes('*');
-        return isAuthor || isShared;
+        if (!isAuthor && !isShared) return false;
+        const cfid = row[1] || '';
+        if (activeFolderIds.size > 0 && cfid && !activeFolderIds.has(cfid)) return false;
+        return true;
       })
       .map(row => ({
         planId: row[0] || '',
@@ -100,6 +113,84 @@ plansRouter.get('/my', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('My plans error:', err.message);
     res.status(500).json({ error: 'プラン一覧の取得に失敗しました' });
+  }
+});
+
+// ── 既存プラン一覧（drafts + Drive上の過去JSON） ──
+// 返り値: { drafts: [...], archived: { [subfolder]: [...] } }
+plansRouter.get('/existing/:clientFolderId', async (req: Request, res: Response) => {
+  try {
+    const token = getAccessToken(req);
+    if (!token) return res.status(401).json({ error: 'No access token' });
+    const clientFolderId = req.params.clientFolderId as string;
+    const email = req.session.user?.email || '';
+
+    // 1) drafts from settings sheet
+    const sid = getSettingsId();
+    const drafts: Array<any> = [];
+    if (sid) {
+      const rows = await getSheetData(sid, 'drafts!A:J', token);
+      if (rows && rows.length > 1) {
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row[1] !== clientFolderId) continue;
+          const isAuthor = row[3] === email;
+          const sharedWith = (row[8] || '').split(',').map((s: string) => s.trim().toLowerCase());
+          const isShared = sharedWith.includes(email.toLowerCase()) || sharedWith.includes('*');
+          if (!isAuthor && !isShared) continue;
+          let planData: any = null;
+          try { planData = JSON.parse(row[7] || '{}'); } catch { /* ignore */ }
+          const approved = !!(planData?.selectedPlan?.approved || (planData?.plans || []).some((p: any) => p?.approved));
+          drafts.push({
+            planId: row[0] || '',
+            clientFolderId: row[1] || '',
+            clientName: row[2] || '',
+            authorEmail: row[3] || '',
+            authorName: row[4] || '',
+            mode: row[5] || '',
+            status: row[6] || 'draft',
+            approved,
+            updatedAt: row[9] || '',
+          });
+        }
+      }
+    }
+
+    // 2) archived plan JSONs under 01_居宅サービス計画書 + 認定期間 subfolders
+    const archived: Record<string, Array<{ fileId: string; fileName: string; modifiedTime: string }>> = {};
+    const careplanFolderId = await findSubfolder(token, clientFolderId, '01_居宅サービス計画書');
+    if (careplanFolderId) {
+      const rootFiles = await listFilesInFolder(token, careplanFolderId);
+      const rootJsons = rootFiles.filter(f => f.name.endsWith('.json') && /解析結果.*ケアプラン|careplan/i.test(f.name));
+      if (rootJsons.length > 0) {
+        archived['01_居宅サービス計画書'] = rootJsons.map(f => ({ fileId: f.id, fileName: f.name, modifiedTime: f.modifiedTime }));
+      }
+      const subs = await listSubfolders(token, careplanFolderId);
+      for (const sub of subs) {
+        const subFiles = await listFilesInFolder(token, sub.id);
+        const subJsons = subFiles.filter(f => f.name.endsWith('.json'));
+        if (subJsons.length === 0) continue;
+        archived[sub.name] = subJsons.map(f => ({ fileId: f.id, fileName: f.name, modifiedTime: f.modifiedTime }));
+      }
+    }
+
+    res.json({ drafts, archived });
+  } catch (err: any) {
+    console.error('Existing plans error:', err.message);
+    res.status(500).json({ error: '既存プラン一覧の取得に失敗しました' });
+  }
+});
+
+plansRouter.get('/archive-file/:fileId', async (req: Request, res: Response) => {
+  try {
+    const token = getAccessToken(req);
+    if (!token) return res.status(401).json({ error: 'No access token' });
+    const fileId = req.params.fileId as string;
+    const data = await getJsonFileContent(token, fileId);
+    res.json({ data });
+  } catch (err: any) {
+    console.error('Archive load error:', err.message);
+    res.status(500).json({ error: 'アーカイブプランの読み込みに失敗しました' });
   }
 });
 

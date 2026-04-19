@@ -2,8 +2,13 @@ import { findMyDriveFolder, findSubfolder, listSubfolders, createFolder } from '
 
 export interface UserFolderLite { folderId: string; folderName: string; nameNorm: string; }
 
+/**
+ * フォルダ名を正規化する。先頭の「ふりがな_」プレフィックス（例: "き_木村光範"）、
+ * 空白、末尾の "様" を取り除く。これにより "き_木村光範" と "木村光範" は同一として扱える。
+ */
 export function normalizeName(name: string): string {
   return (name || '')
+    .replace(/^[\p{sc=Hiragana}\p{sc=Katakana}ー]{1,4}_/u, '')
     .replace(/[\s\u3000]+/g, '')
     .replace(/様$/, '')
     .trim();
@@ -38,10 +43,11 @@ export async function listUserFoldersForImport(token: string): Promise<Array<{ f
 export async function findUserFolderByNameForImport(token: string, name: string): Promise<{ folderId: string; folderName: string } | null> {
   const rootFolderId = process.env.USER_ROOT_FOLDER_ID || '';
   if (!rootFolderId) return null;
-  const folderName = `${name.trim()}様`;
-  const folderId = await findSubfolder(token, rootFolderId, folderName);
-  if (!folderId) return null;
-  return { folderId, folderName };
+  const target = normalizeName(name);
+  const all = await listSubfolders(token, rootFolderId);
+  const hit = all.find(f => normalizeName(f.name) === target);
+  if (!hit) return null;
+  return { folderId: hit.id, folderName: hit.name };
 }
 
 export async function createUserFolderTree(token: string, name: string, isPrivate = false): Promise<{ folderId: string; folderName: string }> {
