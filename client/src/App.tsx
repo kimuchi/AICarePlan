@@ -95,6 +95,8 @@ export default function App() {
   const [plans, setPlans] = useState<GeneratedPlan[]>([]);
   const [existingPlan, setExistingPlan] = useState<GeneratedPlan | null>(null);
   const [userProfile, setUserProfile] = useState<ExtractedUserProfile | null>(null);
+  const [loadedUserMeta, setLoadedUserMeta] = useState<any | null>(null);
+  const [loadedPlanMeta, setLoadedPlanMeta] = useState<any | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
   const [currentSharedWith, setCurrentSharedWith] = useState('');
@@ -141,6 +143,8 @@ export default function App() {
     setPlans([]);
     setExistingPlan(null);
     setUserProfile(null);
+    setLoadedUserMeta(null);
+    setLoadedPlanMeta(null);
     setExportUrl(null);
     setCurrentPlanId(null);
     setCurrentSharedWith('');
@@ -153,6 +157,8 @@ export default function App() {
       if (planData.plans) setPlans(planData.plans);
       if (planData.existingPlan) setExistingPlan(planData.existingPlan);
       if (planData.userProfile) setUserProfile(planData.userProfile);
+      setLoadedUserMeta(planData.editedUserMeta || null);
+      setLoadedPlanMeta(planData.editedPlanMeta || null);
       if (data.mode) setMode(data.mode as BusinessMode);
       setCurrentPlanId(planId);
       setCurrentSharedWith(data.sharedWith || '');
@@ -514,10 +520,13 @@ export default function App() {
             onSelect={setSelectedUser}
             onNext={() => setStep(1)}
             onLoadPlan={handleLoadPlan}
-            onOpenImported={(plan, clientFolderId, clientName, m) => {
+            onOpenImported={(plan, clientFolderId, clientName, m, extra) => {
               const mm = (m === 'shoki' ? 'shoki' : 'kyotaku') as BusinessMode;
               setPlans([plan]);
               setExistingPlan(null);
+              setUserProfile(extra?.userProfile || null);
+              setLoadedUserMeta(extra?.editedUserMeta || null);
+              setLoadedPlanMeta(extra?.editedPlanMeta || null);
               setMode(mm);
               setCurrentPlanId(null);
               setCurrentSharedWith('');
@@ -560,22 +569,22 @@ export default function App() {
             plans={plans}
             existingPlan={existingPlan}
             userMeta={{
-              name: userProfile?.name || selectedUser?.name || '',
-              birthDate: userProfile?.birthDate || '',
-              address: userProfile?.address || '',
-              careLevel: userProfile?.careLevel || '',
-              certDate: userProfile?.certDate || '',
+              name: loadedUserMeta?.name || userProfile?.name || selectedUser?.name || '',
+              birthDate: loadedUserMeta?.birthDate || userProfile?.birthDate || '',
+              address: loadedUserMeta?.address || userProfile?.address || '',
+              careLevel: loadedUserMeta?.careLevel || userProfile?.careLevel || '',
+              certDate: loadedUserMeta?.certDate || userProfile?.certDate || '',
               certPeriod: {
-                start: userProfile?.certPeriodStart || '',
-                end: userProfile?.certPeriodEnd || '',
+                start: loadedUserMeta?.certPeriod?.start || userProfile?.certPeriodStart || '',
+                end: loadedUserMeta?.certPeriod?.end || userProfile?.certPeriodEnd || '',
               },
             }}
             planMeta={{
-              creator: managerNameOverride || selectedFacility?.managerName || '',
-              facility: selectedFacility?.name || '',
-              facilityAddress: selectedFacility?.address || '',
-              createDate: formatWareki(),
-              firstCreateDate: userProfile?.firstCreateDate || '',
+              creator: loadedPlanMeta?.creator || managerNameOverride || selectedFacility?.managerName || '',
+              facility: loadedPlanMeta?.facility || selectedFacility?.name || '',
+              facilityAddress: loadedPlanMeta?.facilityAddress || selectedFacility?.address || '',
+              createDate: loadedPlanMeta?.createDate || formatWareki(),
+              firstCreateDate: loadedPlanMeta?.firstCreateDate || userProfile?.firstCreateDate || '',
             }}
             mode={mode}
             onSave={handleSave}

@@ -106,7 +106,7 @@ function parseTable1(grid: string[][]): Record<string, any> {
   if (out.careLevel) out.careLevel = extractCareLevel(String(out.careLevel)) || String(out.careLevel);
   if (out.certPeriod) {
     const r = parseDateRange(String(out.certPeriod));
-    out.certPeriod = { raw: String(out.certPeriod), fromIso: r.fromIso, toIso: r.toIso };
+    out.certPeriod = { raw: String(out.certPeriod), fromIso: r.fromIso, toIso: r.toIso, rawFrom: r.rawFrom, rawTo: r.rawTo };
   }
 
   // Multi-row text blocks (label on own row, content below)

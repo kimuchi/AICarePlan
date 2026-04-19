@@ -7,7 +7,7 @@ interface Props {
   onSelect: (user: UserFolder) => void;
   onNext: () => void;
   onLoadPlan: (planId: string) => void;
-  onOpenImported: (plan: any, clientFolderId: string, clientName: string, mode: string) => void;
+  onOpenImported: (plan: any, clientFolderId: string, clientName: string, mode: string, extra?: { userProfile?: any; editedUserMeta?: any; editedPlanMeta?: any }) => void;
   toast: (msg: string) => void;
 }
 
@@ -87,7 +87,12 @@ export default function UserSelect({ selectedUser, onSelect, onNext, onLoadPlan,
         clientName,
         mode,
         status: 'draft',
-        planJson: JSON.stringify({ plans: [copy] }),
+        planJson: JSON.stringify({
+          plans: [copy],
+          userProfile: planData?.userProfile || null,
+          editedUserMeta: planData?.editedUserMeta || null,
+          editedPlanMeta: planData?.editedPlanMeta || null,
+        }),
       });
       toast('コピーして新規作成しました');
       onLoadPlan(saved.planId);
@@ -115,7 +120,12 @@ export default function UserSelect({ selectedUser, onSelect, onNext, onLoadPlan,
         clientName: selectedUser.name,
         mode,
         status: 'draft',
-        planJson: JSON.stringify({ plans: [copy] }),
+        planJson: JSON.stringify({
+          plans: [copy],
+          userProfile: data?.userProfile || null,
+          editedUserMeta: data?.editedUserMeta || null,
+          editedPlanMeta: data?.editedPlanMeta || null,
+        }),
       });
       toast(`「${fileName}」をコピーして新規作成しました（${mode === 'shoki' ? '小多機' : '居宅'}として認識）`);
       onLoadPlan(saved.planId);
@@ -133,7 +143,11 @@ export default function UserSelect({ selectedUser, onSelect, onNext, onLoadPlan,
       const { data, mode } = await loadArchiveFile(fileId);
       const gp = data?.generatedPlan || data?.plans?.[0] || null;
       if (!gp) throw new Error('アーカイブ内にプランが見つかりません');
-      onOpenImported(gp, selectedUser.folderId, selectedUser.name, mode);
+      onOpenImported(gp, selectedUser.folderId, selectedUser.name, mode, {
+        userProfile: data?.userProfile || null,
+        editedUserMeta: data?.editedUserMeta || null,
+        editedPlanMeta: data?.editedPlanMeta || null,
+      });
     } catch (e: any) {
       toast(`開けません: ${e.message}`);
     } finally {
