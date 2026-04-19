@@ -34,7 +34,7 @@ export async function placeCareplanArtifacts(params: {
   if (sid) {
     draftId = `draft-${Date.now().toString(36)}`;
     const mode = params.forceMode || (/小規模多機能/.test(parsed?.table1?.office || '') ? 'shoki' : 'kyotaku');
-    await appendSheetData(token, sid, 'drafts!A:J', [[draftId, userFolderId, params.userName, params.actorEmail || '', '', mode, 'draft', JSON.stringify({ plans: [generatedPlan] }), '', new Date().toISOString()]]);
+    await appendSheetData(token, sid, 'drafts!A:L', [[draftId, userFolderId, params.userName, params.actorEmail || '', '', mode, 'draft', JSON.stringify({ plans: [generatedPlan] }), '', new Date().toISOString(), '', '']]);
   }
   return {
     originalExcelUrl: `https://drive.google.com/file/d/${excelId}/view`,

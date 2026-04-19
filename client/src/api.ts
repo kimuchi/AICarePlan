@@ -327,10 +327,13 @@ export interface SavedPlanSummary {
   authorEmail: string;
   authorName: string;
   mode: string;
-  status: 'draft' | 'completed';
+  status: 'draft' | 'completed' | 'approved';
   updatedAt: string;
   sharedWith?: string;
   isSharedToMe?: boolean;
+  approved?: boolean;
+  approvedPlanId?: string;
+  approvedAt?: string;
 }
 
 export async function getMyPlans(): Promise<{ plans: SavedPlanSummary[] }> {
@@ -444,7 +447,7 @@ export async function getExistingPlans(clientFolderId: string): Promise<Existing
   return request(`/api/plans/existing/${clientFolderId}`);
 }
 
-export async function loadArchiveFile(fileId: string): Promise<{ data: any }> {
+export async function loadArchiveFile(fileId: string): Promise<{ data: any; mode: 'kyotaku' | 'shoki' }> {
   return request(`/api/plans/archive-file/${fileId}`);
 }
 

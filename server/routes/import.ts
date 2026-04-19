@@ -289,7 +289,7 @@ async function pruneDraftsForFolders(
 ): Promise<{ removed: number }> {
   const sid = process.env.SETTINGS_SPREADSHEET_ID;
   if (!sid || folderIds.length === 0) return { removed: 0 };
-  const rows = await getSheetData(sid, 'drafts!A:J', token);
+  const rows = await getSheetData(sid, 'drafts!A:L', token);
   if (!rows || rows.length <= 1) return { removed: 0 };
   const header = rows[0];
   const data = rows.slice(1);

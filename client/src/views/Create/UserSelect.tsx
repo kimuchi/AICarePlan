@@ -102,8 +102,7 @@ export default function UserSelect({ selectedUser, onSelect, onNext, onLoadPlan,
     if (!selectedUser) return;
     setCopying(fileId);
     try {
-      const { data } = await loadArchiveFile(fileId);
-      // JSON shape: { ...parsed, generatedPlan }
+      const { data, mode } = await loadArchiveFile(fileId);
       const gp = data?.generatedPlan || data?.plans?.[0] || null;
       if (!gp) throw new Error('アーカイブ内にプランが見つかりません');
       const copy = JSON.parse(JSON.stringify(gp));
@@ -114,11 +113,11 @@ export default function UserSelect({ selectedUser, onSelect, onNext, onLoadPlan,
       const saved = await savePlan({
         clientFolderId: selectedUser.folderId,
         clientName: selectedUser.name,
-        mode: 'kyotaku',
+        mode,
         status: 'draft',
         planJson: JSON.stringify({ plans: [copy] }),
       });
-      toast(`「${fileName}」をコピーして新規作成しました`);
+      toast(`「${fileName}」をコピーして新規作成しました（${mode === 'shoki' ? '小多機' : '居宅'}として認識）`);
       onLoadPlan(saved.planId);
     } catch (e: any) {
       toast(`コピー失敗: ${e.message}`);
@@ -131,11 +130,10 @@ export default function UserSelect({ selectedUser, onSelect, onNext, onLoadPlan,
     if (!selectedUser) return;
     setCopying(fileId);
     try {
-      const { data } = await loadArchiveFile(fileId);
+      const { data, mode } = await loadArchiveFile(fileId);
       const gp = data?.generatedPlan || data?.plans?.[0] || null;
       if (!gp) throw new Error('アーカイブ内にプランが見つかりません');
-      // 開く (= 読み取り用にPlanEditへ). 保存されるまで drafts には残らない
-      onOpenImported(gp, selectedUser.folderId, selectedUser.name, 'kyotaku');
+      onOpenImported(gp, selectedUser.folderId, selectedUser.name, mode);
     } catch (e: any) {
       toast(`開けません: ${e.message}`);
     } finally {

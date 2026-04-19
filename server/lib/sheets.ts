@@ -592,9 +592,9 @@ export async function initializeSettingsSpreadsheet(
   // drafts — プラン保存（下書き・完成・共有対応）
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: 'drafts!A1:J1',
+    range: 'drafts!A1:L1',
     valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [['planId', 'clientFolderId', 'clientName', 'authorEmail', 'authorName', 'mode', 'status', 'plan_json', 'sharedWith', 'updatedAt']] },
+    requestBody: { values: [['planId', 'clientFolderId', 'clientName', 'authorEmail', 'authorName', 'mode', 'status', 'plan_json', 'sharedWith', 'updatedAt', 'approvedPlanId', 'approvedAt']] },
   });
 
   // Initialize history header
