@@ -68,10 +68,13 @@ function extractWishBlock(text: string, label: string): string {
 
 function extractCareLevel(s: string): string {
   if (!s) return '';
+  // 全角数字を半角に正規化（"要介護１" → "要介護1"）し、ドロップダウン候補と一致させる
+  const zenkakuToHankaku = (str: string) => str.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+  const normalize = (v: string) => zenkakuToHankaku(v).replace(/\s+/g, '');
   const bracket = /【\s*(要介護\s*[0-9０-９]|要支援\s*[0-9０-９]|自立)\s*】/.exec(s);
-  if (bracket) return bracket[1].replace(/\s+/g, '');
+  if (bracket) return normalize(bracket[1]);
   const mark = /■\s*(要介護\s*[0-9０-９]|要支援\s*[0-9０-９]|自立)/.exec(s);
-  if (mark) return mark[1].replace(/\s+/g, '');
+  if (mark) return normalize(mark[1]);
   return '';
 }
 

@@ -31,6 +31,8 @@ export default function UserSelect({ selectedUser, onSelect, onNext, onLoadPlan,
   const [existingLoading, setExistingLoading] = useState(false);
   const [selectedSubfolder, setSelectedSubfolder] = useState<string>('');
   const [copying, setCopying] = useState<string>('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -55,9 +57,13 @@ export default function UserSelect({ selectedUser, onSelect, onNext, onLoadPlan,
       .finally(() => setExistingLoading(false));
   }, [selectedUser?.folderId]);
 
-  const filtered = users.filter(u =>
-    u.name.includes(search) || u.folderName.includes(search)
-  );
+  // 漢字・ふりがな両方で絞り込み（folderName は "き_木村光範" 形式でふりがなを含む）
+  const norm = (s: string) => (s || '').replace(/[\s\u3000]+/g, '').toLowerCase();
+  const q = norm(search);
+  const filtered = q
+    ? users.filter(u => norm(u.name).includes(q) || norm(u.folderName).includes(q))
+    : users;
+  const suggestions = filtered.slice(0, 20);
 
   const statusBadge = (status: string, approved: boolean) => {
     const key = approved ? 'approved' : status;
@@ -159,49 +165,105 @@ export default function UserSelect({ selectedUser, onSelect, onNext, onLoadPlan,
   const archivedGroups = existing?.archived || {};
   const subfolderKeys = Object.keys(archivedGroups);
 
+  const pickUser = (u: UserFolder) => {
+    onSelect(u);
+    setSearch('');
+    setDropdownOpen(false);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!dropdownOpen) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(suggestions.length - 1, i + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(0, i - 1)); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (suggestions[activeIdx]) pickUser(suggestions[activeIdx]); }
+    else if (e.key === 'Escape') { setDropdownOpen(false); }
+  };
+
   return (
     <div>
       <h2 style={S.stepTitle}>利用者を選択してください</h2>
-      <input
-        style={S.searchInput}
-        placeholder="名前で検索..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-      />
 
       {loading && <p style={{ textAlign: 'center', color: '#64748b', padding: 20 }}>利用者フォルダを読み込み中...</p>}
       {error && <p style={{ textAlign: 'center', color: '#dc2626', padding: 20 }}>{error}</p>}
 
-      <div style={S.userList}>
-        {filtered.map(u => (
-          <div
-            key={u.id}
-            style={{
-              ...S.userCard,
-              borderColor: selectedUser?.id === u.id ? '#0f2942' : '#e2e8f0',
-              background: selectedUser?.id === u.id ? '#f0f7ff' : '#fff',
-            }}
-            onClick={() => onSelect(u)}
-          >
-            <div style={S.userCardTop}>
-              <span style={S.avatar}>{u.name[0]}</span>
-              <div style={{ flex: 1 }}>
-                <div style={S.userName}>
-                  {u.name}
-                  {u.hasConfidential && <span style={{ fontSize: 12, marginLeft: 8, color: '#7c3aed' }}>🔒 機密文書あり</span>}
-                </div>
-                <div style={S.userSub}>{u.folderName}</div>
+      {/* 選択中の利用者 */}
+      {selectedUser && (
+        <div style={{ ...S.userCard, borderColor: '#0f2942', background: '#f0f7ff', marginBottom: 12 }}>
+          <div style={S.userCardTop}>
+            <span style={S.avatar}>{selectedUser.name[0]}</span>
+            <div style={{ flex: 1 }}>
+              <div style={S.userName}>
+                {selectedUser.name}
+                {selectedUser.hasConfidential && <span style={{ fontSize: 12, marginLeft: 8, color: '#7c3aed' }}>🔒 機密文書あり</span>}
               </div>
-              {selectedUser?.id === u.id && <span style={S.checkMark}>&#10003;</span>}
+              <div style={S.userSub}>{selectedUser.folderName}</div>
             </div>
+            <span style={S.checkMark}>&#10003;</span>
+            <button
+              style={{ background: 'none', border: '1px solid #d1d9e0', borderRadius: 6, padding: '4px 10px', fontSize: 12, color: '#475569', cursor: 'pointer', marginLeft: 8 }}
+              onClick={() => { onSelect(null as any); setSearch(''); setDropdownOpen(true); }}
+            >変更</button>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {!loading && filtered.length === 0 && !error && (
-        <p style={{ textAlign: 'center', color: '#94a3b8', padding: 20 }}>
-          {search ? '該当する利用者が見つかりません' : '利用者フォルダが見つかりません'}
-        </p>
+      {/* 検索ボックス */}
+      {!selectedUser && (
+        <div style={{ position: 'relative', marginBottom: 12 }}>
+          <input
+            style={S.searchInput}
+            placeholder="漢字またはふりがなで検索（例: 木村 / きむら / き）"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setDropdownOpen(true); setActiveIdx(0); }}
+            onFocus={() => setDropdownOpen(true)}
+            onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
+            onKeyDown={onKeyDown}
+            autoFocus
+          />
+          {dropdownOpen && suggestions.length > 0 && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+              background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10,
+              maxHeight: 360, overflowY: 'auto', boxShadow: '0 8px 20px rgba(15,41,66,.08)',
+            }}>
+              {suggestions.map((u, i) => (
+                <div
+                  key={u.id}
+                  onMouseDown={() => pickUser(u)}
+                  onMouseEnter={() => setActiveIdx(i)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', cursor: 'pointer',
+                    background: i === activeIdx ? '#eef2ff' : '#fff',
+                    borderBottom: i === suggestions.length - 1 ? 'none' : '1px solid #f1f5f9',
+                  }}
+                >
+                  <span style={{ ...S.avatar, width: 32, height: 32, fontSize: 14 }}>{u.name[0]}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{u.name}</div>
+                    <div style={{ fontSize: 11, color: '#64748b' }}>{u.folderName}</div>
+                  </div>
+                  {u.hasConfidential && <span style={{ fontSize: 11, color: '#7c3aed' }}>🔒</span>}
+                </div>
+              ))}
+              {filtered.length > suggestions.length && (
+                <div style={{ padding: '6px 14px', fontSize: 11, color: '#94a3b8', background: '#fafafa' }}>
+                  他に {filtered.length - suggestions.length} 件…さらに絞り込んでください
+                </div>
+              )}
+            </div>
+          )}
+          {dropdownOpen && search && suggestions.length === 0 && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+              background: '#fff', border: '1px solid #cbd5e1', borderRadius: 10,
+              padding: '12px 14px', fontSize: 13, color: '#94a3b8',
+            }}>該当する利用者が見つかりません</div>
+          )}
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+            登録 {users.length} 名 / ↑↓で移動、Enterで選択
+          </div>
+        </div>
       )}
 
       {/* 既存プラン一覧 */}
