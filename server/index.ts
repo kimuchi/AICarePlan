@@ -13,6 +13,7 @@ import { analyzeRouter } from './routes/analyze.js';
 import { exportRouter } from './routes/export.js';
 import { settingsRouter } from './routes/settings.js';
 import { plansRouter } from './routes/plans.js';
+import { importRouter, usersExtraRouter } from './routes/import.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,11 +66,13 @@ app.get('/api/manual', async (_req, res) => {
 
 // ── API routes (all require auth) ──
 app.use('/api/users', requireAuth, usersRouter);
+app.use('/api/users', requireAuth, usersExtraRouter);
 app.use('/api/sources', requireAuth, sourcesRouter);
 app.use('/api/analyze', requireAuth, analyzeRouter);
 app.use('/api/export', requireAuth, exportRouter);
 app.use('/api/settings', requireAuth, settingsRouter);
 app.use('/api/plans', requireAuth, plansRouter);
+app.use('/api/import', requireAuth, importRouter);
 
 // ── Serve static client in production ──
 const clientDir = path.resolve(__dirname, '../client');

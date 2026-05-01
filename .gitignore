@@ -5,3 +5,6 @@ dist/
 .DS_Store
 .vscode/
 .idea/
+
+# 個人情報を含むサンプル取込資料（mainには絶対に入れない）
+/import/

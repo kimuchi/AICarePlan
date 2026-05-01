@@ -59,6 +59,18 @@ export default function Home({ user, onNavigate, onLogout, toast, onLoadPlan }: 
           <span style={S.heroArrow}>&rarr;</span>
         </div>
 
+        <div
+          style={{ ...S.heroCard, background: '#f0fdf4', borderColor: '#86efac', marginTop: 12 }}
+          onClick={() => onNavigate('import')}
+        >
+          <div style={{ ...S.heroIcon, background: '#16a34a' }}>↑</div>
+          <div style={{ flex: 1 }}>
+            <h2 style={S.heroTitle}>Excel取込</h2>
+            <p style={S.heroDesc}>既存のケアプラン・フェイスシート・アセスメントExcelを取り込んで参考情報として保存します</p>
+          </div>
+          <span style={S.heroArrow}>&rarr;</span>
+        </div>
+
         {loading && <p style={{ textAlign: 'center', color: '#64748b', padding: 20 }}>読み込み中...</p>}
 
         {/* 共有されたプラン */}

@@ -5,6 +5,7 @@ import { getSystemUsers } from '../../api';
 import Table1View from './Table1View';
 import Table2View from './Table2View';
 import Table3View from './Table3View';
+import ReferencePanel from '../../components/ReferencePanel';
 
 interface UserMeta {
   name: string;
@@ -33,6 +34,8 @@ interface Props {
   currentPlanId?: string | null;
   currentSharedWith?: string;
   onShare?: (planId: string, emails: string) => Promise<void> | void;
+  /** 取込済み参考情報（フェイスシート・アセスメント等）を取得するための利用者フォルダID */
+  userFolderId?: string;
 }
 
 const PLAN_COLORS: Record<string, string> = { P1: '#2563eb', P2: '#059669', P3: '#d97706' };
@@ -45,8 +48,9 @@ interface Snapshot {
 
 export default function PlanEdit({
   plans, existingPlan, userMeta: initialUserMeta, planMeta: initialPlanMeta, mode,
-  onSave, currentPlanId, currentSharedWith, onShare,
+  onSave, currentPlanId, currentSharedWith, onShare, userFolderId,
 }: Props) {
+  const [showReference, setShowReference] = useState(false);
   const [activePlanId, setActivePlanId] = useState(plans.length > 0 ? plans[0].id : (existingPlan ? 'EXISTING' : ''));
   const [activeTable, setActiveTable] = useState<'table1' | 'table2' | 'table3'>('table1');
   const [editedPlans, setEditedPlans] = useState<Record<string, GeneratedPlan>>({});
@@ -235,6 +239,19 @@ export default function PlanEdit({
             <button style={{ ...S.secondaryBtn, padding: '8px 12px', fontSize: 13 }}
               onClick={() => setShowShareDialog(false)}>閉じる</button>
           </div>
+        </div>
+      )}
+
+      {/* 参考情報パネル（取込済み Excel ベース） */}
+      {userFolderId && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            style={{ ...S.smallBtn, fontSize: 12, padding: '6px 12px', background: showReference ? '#0f2942' : '#475569' }}
+            onClick={() => setShowReference((v) => !v)}
+          >
+            {showReference ? '参考情報を隠す' : '参考情報（取込済み）を表示'}
+          </button>
+          {showReference && <ReferencePanel folderId={userFolderId} />}
         </div>
       )}
 

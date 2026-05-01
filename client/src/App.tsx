@@ -4,6 +4,7 @@ import { formatWareki } from './utils';
 import Home from './views/Home';
 import Settings from './views/Settings';
 import Help from './views/Help';
+import ImportPage from './views/ImportPage';
 import UserSelect from './views/Create/UserSelect';
 import SourceSelect from './views/Create/SourceSelect';
 import PlanEdit from './views/Create/PlanEdit';
@@ -80,7 +81,7 @@ function buildExistingPlanFromJson(data: any): GeneratedPlan | null {
 export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'create' | 'help'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'settings' | 'create' | 'help' | 'import'>('home');
   const [step, setStep] = useState(0);
   const [showToast, setShowToast] = useState<string | null>(null);
 
@@ -431,6 +432,20 @@ export default function App() {
     );
   }
 
+  // Import
+  if (currentView === 'import') {
+    return (
+      <>
+        {ToastEl}
+        <ImportPage
+          user={user}
+          onNavigate={(view) => setCurrentView(view as any)}
+          toast={toast}
+        />
+      </>
+    );
+  }
+
   // Create flow
   return (
     <div style={S.root}>
@@ -511,6 +526,7 @@ export default function App() {
           <PlanEdit
             plans={plans}
             existingPlan={existingPlan}
+            userFolderId={selectedUser?.folderId}
             userMeta={{
               name: userProfile?.name || selectedUser?.name || '',
               birthDate: userProfile?.birthDate || '',

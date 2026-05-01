@@ -364,3 +364,47 @@ export async function extractExistingPlanFromFile(fileId: string, mimeType: stri
     body: JSON.stringify({ fileId, mimeType }),
   });
 }
+
+// ── Import ──
+
+import type {
+  PreviewResponse,
+  CommitRequestItem,
+  CommitResponse,
+  LatestCareplanResponse,
+  LatestAssessmentResponse,
+} from '@server/types/imported';
+
+export async function importPreview(files: File[]): Promise<PreviewResponse> {
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f, f.name);
+  const res = await fetch(`${BASE}/api/import/preview`, {
+    method: 'POST',
+    credentials: 'include',
+    body: fd,
+  });
+  if (res.status === 401) {
+    window.location.href = '/auth/google';
+    throw new Error('Authentication required');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function importCommit(items: CommitRequestItem[]): Promise<CommitResponse> {
+  return request('/api/import/commit', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  });
+}
+
+export async function getLatestCareplan(folderId: string): Promise<LatestCareplanResponse> {
+  return request(`/api/users/${folderId}/careplan-latest`);
+}
+
+export async function getLatestAssessment(folderId: string): Promise<LatestAssessmentResponse> {
+  return request(`/api/users/${folderId}/assessment-latest`);
+}
