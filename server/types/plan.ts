@@ -59,6 +59,31 @@ export interface Table3Data {
   weeklyService: string;
 }
 
+/** 第4表 サービス担当者会議の要点 */
+export interface Table4Data {
+  date: string;
+  place: string;
+  duration: string;
+  count: string;
+  userAttendance: string;
+  familyAttendance: string;
+  attendees: Array<{ affiliation: string; name: string }>;
+  discussedItems: string;
+  discussionContent: string;
+  conclusion: string;
+  remainingTasks: string;
+}
+
+/** 第5表 居宅介護支援経過 1エントリ */
+export interface Table5Entry {
+  date: string;
+  item: string;
+  content: string;
+}
+
+/** 第6表 サービス利用票（月別） */
+export type Table6Row = Record<string, string>;
+
 /** Gemini が生成する1プラン */
 export interface GeneratedPlan {
   id: string;
@@ -67,6 +92,16 @@ export interface GeneratedPlan {
   table1: Table1Data;
   table2: NeedItem[];
   table3: Table3Data;
+  /** 取込時のみ設定される */
+  table4?: Table4Data;
+  /** 取込時のみ設定される */
+  table5?: Table5Entry[];
+  /** 取込時のみ設定される */
+  table6?: Table6Row[];
+  /** このプランが利用者に承認された最新のものであれば true */
+  approved?: boolean;
+  /** 承認日時（ISO string） */
+  approvedAt?: string;
 }
 
 /** プランメタ情報 */

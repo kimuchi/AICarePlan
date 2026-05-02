@@ -11,10 +11,9 @@ import ImportPage from './views/ImportPage';
 import {
   getMe, logout as apiLogout,
   fetchSourceContents, analyzeSources, exportToSheets,
-  getFacilities, savePlan, listPlans, loadPlan, extractExistingPlanFromFile,
+  getFacilities, savePlan, loadPlan, extractExistingPlanFromFile,
   type SessionUser, type UserFolder, type SourceFile,
   type GeneratedPlan, type BusinessMode, type Facility, type ExtractedUserProfile,
-  type SavedPlanSummary,
 } from './api';
 
 const STEPS = ['利用者選択', '情報源選択', 'プラン編集・エクスポート'];
@@ -96,10 +95,11 @@ export default function App() {
   const [plans, setPlans] = useState<GeneratedPlan[]>([]);
   const [existingPlan, setExistingPlan] = useState<GeneratedPlan | null>(null);
   const [userProfile, setUserProfile] = useState<ExtractedUserProfile | null>(null);
+  const [loadedUserMeta, setLoadedUserMeta] = useState<any | null>(null);
+  const [loadedPlanMeta, setLoadedPlanMeta] = useState<any | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
   const [currentSharedWith, setCurrentSharedWith] = useState('');
-  const [savedPlans, setSavedPlans] = useState<SavedPlanSummary[]>([]);
 
   // 事業所IDが変わったら事業所データを更新
   useEffect(() => {
@@ -143,10 +143,11 @@ export default function App() {
     setPlans([]);
     setExistingPlan(null);
     setUserProfile(null);
+    setLoadedUserMeta(null);
+    setLoadedPlanMeta(null);
     setExportUrl(null);
     setCurrentPlanId(null);
     setCurrentSharedWith('');
-    setSavedPlans([]);
   };
 
   const handleLoadPlan = async (planId: string) => {
@@ -156,6 +157,8 @@ export default function App() {
       if (planData.plans) setPlans(planData.plans);
       if (planData.existingPlan) setExistingPlan(planData.existingPlan);
       if (planData.userProfile) setUserProfile(planData.userProfile);
+      setLoadedUserMeta(planData.editedUserMeta || null);
+      setLoadedPlanMeta(planData.editedPlanMeta || null);
       if (data.mode) setMode(data.mode as BusinessMode);
       setCurrentPlanId(planId);
       setCurrentSharedWith(data.sharedWith || '');
@@ -251,7 +254,18 @@ export default function App() {
       };
 
       const result = await analyzeSources(userInfo, sourceContents, mode, selectedFacilityId, managerNameOverride || undefined);
-      setPlans(result.plans);
+      setPlans(prev => {
+        if (prev.length === 0) return result.plans;
+        // 既存プランに追加する場合は、id が重複しないよう rename
+        const usedIds = new Set(prev.map(p => p.id));
+        const appended = result.plans.map((p, idx) => {
+          let newId = p.id;
+          while (usedIds.has(newId)) newId = `${p.id}_${idx + 1}_${Date.now().toString(36).slice(-3)}`;
+          usedIds.add(newId);
+          return { ...p, id: newId, label: p.label?.includes('(追加)') ? p.label : `${p.label || `プラン${idx + 1}`}(追加)` };
+        });
+        return [...prev, ...appended];
+      });
       if (result.userProfile) setUserProfile(result.userProfile);
       setStep(2);
     } catch (err: any) {
@@ -505,9 +519,28 @@ export default function App() {
             selectedUser={selectedUser}
             onSelect={setSelectedUser}
             onNext={() => setStep(1)}
-            savedPlans={savedPlans}
-            onSavedPlansChange={setSavedPlans}
             onLoadPlan={handleLoadPlan}
+            onOpenImported={(plan, clientFolderId, clientName, m, extra) => {
+              const mm = (m === 'shoki' ? 'shoki' : 'kyotaku') as BusinessMode;
+              setPlans([plan]);
+              setExistingPlan(null);
+              setUserProfile(extra?.userProfile || null);
+              setLoadedUserMeta(extra?.editedUserMeta || null);
+              setLoadedPlanMeta(extra?.editedPlanMeta || null);
+              setMode(mm);
+              setCurrentPlanId(null);
+              setCurrentSharedWith('');
+              setSelectedUser({
+                id: clientFolderId,
+                name: clientName,
+                folderName: `${clientName}様`,
+                folderId: clientFolderId,
+                hasConfidential: false,
+                modifiedTime: '',
+              } as any);
+              setStep(2);
+            }}
+            toast={toast}
           />
         )}
 
@@ -536,22 +569,22 @@ export default function App() {
             plans={plans}
             existingPlan={existingPlan}
             userMeta={{
-              name: userProfile?.name || selectedUser?.name || '',
-              birthDate: userProfile?.birthDate || '',
-              address: userProfile?.address || '',
-              careLevel: userProfile?.careLevel || '',
-              certDate: userProfile?.certDate || '',
+              name: loadedUserMeta?.name || userProfile?.name || selectedUser?.name || '',
+              birthDate: loadedUserMeta?.birthDate || userProfile?.birthDate || '',
+              address: loadedUserMeta?.address || userProfile?.address || '',
+              careLevel: loadedUserMeta?.careLevel || userProfile?.careLevel || '',
+              certDate: loadedUserMeta?.certDate || userProfile?.certDate || '',
               certPeriod: {
-                start: userProfile?.certPeriodStart || '',
-                end: userProfile?.certPeriodEnd || '',
+                start: loadedUserMeta?.certPeriod?.start || userProfile?.certPeriodStart || '',
+                end: loadedUserMeta?.certPeriod?.end || userProfile?.certPeriodEnd || '',
               },
             }}
             planMeta={{
-              creator: managerNameOverride || selectedFacility?.managerName || '',
-              facility: selectedFacility?.name || '',
-              facilityAddress: selectedFacility?.address || '',
-              createDate: formatWareki(),
-              firstCreateDate: userProfile?.firstCreateDate || '',
+              creator: loadedPlanMeta?.creator || managerNameOverride || selectedFacility?.managerName || '',
+              facility: loadedPlanMeta?.facility || selectedFacility?.name || '',
+              facilityAddress: loadedPlanMeta?.facilityAddress || selectedFacility?.address || '',
+              createDate: loadedPlanMeta?.createDate || formatWareki(),
+              firstCreateDate: loadedPlanMeta?.firstCreateDate || userProfile?.firstCreateDate || '',
             }}
             mode={mode}
             onSave={handleSave}
@@ -567,6 +600,12 @@ export default function App() {
                 toast(`共有エラー: ${err.message}`);
               }
             }}
+            onAddPlan={(p) => { setPlans(prev => [...prev, p]); toast(`プラン「${p.label}」を追加しました`); }}
+            onMarkApproved={(planId) => {
+              setPlans(prev => prev.map(p => ({ ...p, approved: p.id === planId, approvedAt: p.id === planId ? new Date().toISOString() : p.approvedAt })));
+              toast('このプランを承認済みにしました');
+            }}
+            onAddAIPlans={() => { setStep(1); toast('情報源を選び直してAIで追加プランを生成してください'); }}
           />
 
           {/* エクスポート完了通知 */}

@@ -106,13 +106,19 @@ export default function Home({ user, onNavigate, onLogout, toast, onLoadPlan }: 
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-          <span style={{
-            fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-            background: p.status === 'draft' ? '#fef3c7' : '#dcfce7',
-            color: p.status === 'draft' ? '#92400e' : '#166534',
-          }}>
-            {p.status === 'draft' ? '下書き' : '作成済み'}
-          </span>
+          {p.approved ? (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: '#dbeafe', color: '#1e40af' }}>
+              ✓ 承認済み{p.approvedAt ? `（${p.approvedAt.slice(0, 10)}）` : ''}
+            </span>
+          ) : (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+              background: p.status === 'draft' ? '#fef3c7' : '#dcfce7',
+              color: p.status === 'draft' ? '#92400e' : '#166534',
+            }}>
+              {p.status === 'draft' ? '下書き' : p.status === 'completed' ? '作成済み' : p.status}
+            </span>
+          )}
           {isShared && (
             <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: '#ede9fe', color: '#7c3aed' }}>
               {p.authorName || p.authorEmail} から共有

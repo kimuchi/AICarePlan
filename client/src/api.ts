@@ -131,6 +131,28 @@ export interface GeneratedPlan {
     dailyActivities: Array<{ time: string; activity: string }>;
     weeklyService: string;
   };
+  /** 取込時のみ設定。サービス担当者会議の要点 */
+  table4?: {
+    date: string;
+    place: string;
+    duration: string;
+    count: string;
+    userAttendance: string;
+    familyAttendance: string;
+    attendees: Array<{ affiliation: string; name: string }>;
+    discussedItems: string;
+    discussionContent: string;
+    conclusion: string;
+    remainingTasks: string;
+  };
+  /** 取込時のみ設定。居宅介護支援経過 */
+  table5?: Array<{ date: string; item: string; content: string }>;
+  /** 取込時のみ設定。サービス利用票等 */
+  table6?: Array<Record<string, string>>;
+  /** このプランが承認済みの場合 true */
+  approved?: boolean;
+  /** 承認日時（ISO string） */
+  approvedAt?: string;
 }
 
 export type BusinessMode = 'kyotaku' | 'shoki';
@@ -305,10 +327,13 @@ export interface SavedPlanSummary {
   authorEmail: string;
   authorName: string;
   mode: string;
-  status: 'draft' | 'completed';
+  status: 'draft' | 'completed' | 'approved';
   updatedAt: string;
   sharedWith?: string;
   isSharedToMe?: boolean;
+  approved?: boolean;
+  approvedPlanId?: string;
+  approvedAt?: string;
 }
 
 export async function getMyPlans(): Promise<{ plans: SavedPlanSummary[] }> {
@@ -384,8 +409,46 @@ export async function previewImport(files: File[]): Promise<ImportPreviewRespons
   return request('/api/import/preview', { method: 'POST', body: JSON.stringify({ files: payload }) });
 }
 
-export async function commitImport(items: any[]): Promise<{ results: any[]; bulkFastMode?: boolean }> {
-  return request('/api/import/commit', { method: 'POST', body: JSON.stringify({ items }) });
+export async function commitImport(items: any[], cleanOld = false): Promise<{ results: any[]; bulkFastMode?: boolean; cleanup?: { totalDeleted: number; totalKept: number; perUser: any[] } | null }> {
+  return request('/api/import/commit', { method: 'POST', body: JSON.stringify({ items, cleanOld }) });
+}
+
+export interface ImportCleanupResponse {
+  totalDeleted: number;
+  totalKept: number;
+  userCount: number;
+  perUser: Array<{
+    userName: string;
+    careplan: { kept: number; deleted: number; deletedNames: string[] };
+    assessment: { kept: number; deleted: number; deletedNames: string[] };
+  }>;
+}
+
+export async function cleanupImports(): Promise<ImportCleanupResponse> {
+  return request('/api/import/cleanup', { method: 'POST' });
+}
+
+export interface ExistingPlansResponse {
+  drafts: Array<{
+    planId: string;
+    clientFolderId: string;
+    clientName: string;
+    authorEmail: string;
+    authorName: string;
+    mode: string;
+    status: string;
+    approved: boolean;
+    updatedAt: string;
+  }>;
+  archived: Record<string, Array<{ fileId: string; fileName: string; modifiedTime: string }>>;
+}
+
+export async function getExistingPlans(clientFolderId: string): Promise<ExistingPlansResponse> {
+  return request(`/api/plans/existing/${clientFolderId}`);
+}
+
+export async function loadArchiveFile(fileId: string): Promise<{ data: any; mode: 'kyotaku' | 'shoki' }> {
+  return request(`/api/plans/archive-file/${fileId}`);
 }
 
 export async function getCareplanLatest(folderId: string): Promise<any> {

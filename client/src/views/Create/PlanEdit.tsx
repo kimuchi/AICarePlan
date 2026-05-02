@@ -5,6 +5,9 @@ import { getSystemUsers } from '../../api';
 import Table1View from './Table1View';
 import Table2View from './Table2View';
 import Table3View from './Table3View';
+import Table4View from './Table4View';
+import Table5View from './Table5View';
+import Table6View from './Table6View';
 import ReferencePanel from '../../components/reference/ReferencePanel';
 
 interface UserMeta {
@@ -35,6 +38,12 @@ interface Props {
   currentSharedWith?: string;
   onShare?: (planId: string, emails: string) => Promise<void> | void;
   clientFolderId?: string;
+  /** 新規にAIプランを追加生成する（既存プランはそのまま） */
+  onAddAIPlans?: () => void;
+  /** 複製した新規プランを追加する（client側で plans 配列を更新） */
+  onAddPlan?: (plan: GeneratedPlan) => void;
+  /** プランの承認フラグを更新する（全プランを渡す） */
+  onMarkApproved?: (planId: string) => void;
 }
 
 const PLAN_COLORS: Record<string, string> = { P1: '#2563eb', P2: '#059669', P3: '#d97706' };
@@ -48,9 +57,10 @@ interface Snapshot {
 export default function PlanEdit({
   plans, existingPlan, userMeta: initialUserMeta, planMeta: initialPlanMeta, mode,
   onSave, currentPlanId, currentSharedWith, onShare, clientFolderId,
+  onAddAIPlans, onAddPlan, onMarkApproved,
 }: Props) {
   const [activePlanId, setActivePlanId] = useState(plans.length > 0 ? plans[0].id : (existingPlan ? 'EXISTING' : ''));
-  const [activeTable, setActiveTable] = useState<'table1' | 'table2' | 'table3'>('table1');
+  const [activeTable, setActiveTable] = useState<'table1' | 'table2' | 'table3' | 'table4' | 'table5' | 'table6'>('table1');
   const [editedPlans, setEditedPlans] = useState<Record<string, GeneratedPlan>>({});
   const [editedUserMeta, setEditedUserMeta] = useState<UserMeta>(initialUserMeta);
   const [editedPlanMeta, setEditedPlanMeta] = useState<PlanMeta>(initialPlanMeta);
@@ -100,6 +110,8 @@ export default function PlanEdit({
   const handleTable1Update = (t1: GeneratedPlan['table1']) => updatePlan(activePlanId, { table1: t1 });
   const handleTable2Update = (t2: GeneratedPlan['table2']) => updatePlan(activePlanId, { table2: t2 });
   const handleTable3Update = (t3: GeneratedPlan['table3']) => updatePlan(activePlanId, { table3: t3 });
+  const handleTable4Update = (t4: NonNullable<GeneratedPlan['table4']>) => updatePlan(activePlanId, { table4: t4 });
+  const handleTable5Update = (t5: NonNullable<GeneratedPlan['table5']>) => updatePlan(activePlanId, { table5: t5 });
   const handleUserMetaUpdate = (um: UserMeta) => { pushUndo(); setEditedUserMeta(um); };
   const handlePlanMetaUpdate = (pm: PlanMeta) => { pushUndo(); setEditedPlanMeta(pm); };
 
@@ -107,6 +119,28 @@ export default function PlanEdit({
     if (!activePlan || saving) return;
     setSaving(true);
     try { await onSave(activePlan, editedUserMeta, editedPlanMeta); } finally { setSaving(false); }
+  };
+
+  const handleDuplicate = () => {
+    if (!activePlan || !onAddPlan) return;
+    const existingIds = new Set(plans.map(p => p.id));
+    let n = 1;
+    while (existingIds.has(`C${n}`)) n++;
+    const newId = `C${n}`;
+    const copy: GeneratedPlan = JSON.parse(JSON.stringify(editedPlans[activePlanId] || activePlan));
+    copy.id = newId;
+    copy.label = `${activePlan.label}のコピー${n}`;
+    copy.summary = `${activePlan.summary || ''}（${activePlan.label}を複製）`;
+    copy.approved = false;
+    delete (copy as any).approvedAt;
+    onAddPlan(copy);
+    setActivePlanId(newId);
+  };
+
+  const handleApprove = () => {
+    if (!activePlan || !onMarkApproved) return;
+    if (activePlan.approved) return;
+    onMarkApproved(activePlanId);
   };
 
   const handleShare = async () => {
@@ -144,18 +178,38 @@ export default function PlanEdit({
           </button>
         </div>
         <div style={S.planSwitcherButtons}>
-          {plans.map(p => (
-            <button key={p.id}
-              style={{ ...S.planSwitchBtn, borderColor: activePlanId === p.id ? (PLAN_COLORS[p.id] || '#0f2942') : '#d1d9e0', background: activePlanId === p.id ? (PLAN_COLORS[p.id] || '#0f2942') : '#fff', color: activePlanId === p.id ? '#fff' : '#475569' }}
-              onClick={() => setActivePlanId(p.id)}>
-              {p.label}
-            </button>
-          ))}
+          {plans.map(p => {
+            const merged = editedPlans[p.id] || p;
+            return (
+              <button key={p.id}
+                style={{ ...S.planSwitchBtn, borderColor: activePlanId === p.id ? (PLAN_COLORS[p.id] || '#0f2942') : '#d1d9e0', background: activePlanId === p.id ? (PLAN_COLORS[p.id] || '#0f2942') : '#fff', color: activePlanId === p.id ? '#fff' : '#475569' }}
+                onClick={() => setActivePlanId(p.id)}>
+                {merged.approved && <span style={{ marginRight: 4 }} title="承認済み">✓</span>}
+                {p.label}
+              </button>
+            );
+          })}
           {existingPlan && (
             <button
               style={{ ...S.planSwitchBtn, borderColor: activePlanId === 'EXISTING' ? '#7c3aed' : '#d1d9e0', background: activePlanId === 'EXISTING' ? '#7c3aed' : '#fff', color: activePlanId === 'EXISTING' ? '#fff' : '#475569' }}
               onClick={() => setActivePlanId('EXISTING')}>
               既存プラン
+            </button>
+          )}
+          {onAddPlan && (
+            <button
+              style={{ ...S.planSwitchBtn, borderColor: '#0f7c3f', color: '#0f7c3f', background: '#fff' }}
+              onClick={handleDuplicate}
+              title="現在表示中のプランをベースに新しいプランを追加">
+              + このプランを複製
+            </button>
+          )}
+          {onAddAIPlans && (
+            <button
+              style={{ ...S.planSwitchBtn, borderColor: '#2563eb', color: '#2563eb', background: '#fff' }}
+              onClick={onAddAIPlans}
+              title="情報源からAIが新規にプラン案を生成し、現在のプランと並べて比較できます">
+              + AIで追加プラン生成
             </button>
           )}
         </div>
@@ -166,9 +220,17 @@ export default function PlanEdit({
 
       {/* Table tabs */}
       <div style={S.tableTabs}>
-        {([['table1', '第1表'], ['table2', '第2表'], ['table3', '第3表 週間サービス計画表']] as const).map(([k, l]) => (
-          <button key={k} style={activeTable === k ? S.tableTabActive : S.tableTab} onClick={() => setActiveTable(k)}>{l}</button>
-        ))}
+        {(() => {
+          const tabs: Array<[typeof activeTable, string]> = [
+            ['table1', '第1表'], ['table2', '第2表'], ['table3', '第3表 週間サービス計画表'],
+          ];
+          if (activePlan.table4) tabs.push(['table4', '第4表 会議要点']);
+          if (activePlan.table5 && activePlan.table5.length > 0) tabs.push(['table5', '第5表 支援経過']);
+          if (activePlan.table6 && activePlan.table6.length > 0) tabs.push(['table6', '第6表 利用票']);
+          return tabs.map(([k, l]) => (
+            <button key={k} style={activeTable === k ? S.tableTabActive : S.tableTab} onClick={() => setActiveTable(k)}>{l}</button>
+          ));
+        })()}
       </div>
 
       {activeTable === 'table1' && (
@@ -180,6 +242,15 @@ export default function PlanEdit({
       )}
       {activeTable === 'table3' && (
         <Table3View plan={activePlan} userName={editedUserMeta.name} meta={editedPlanMeta} onUpdate={handleTable3Update} />
+      )}
+      {activeTable === 'table4' && (
+        <Table4View plan={activePlan} userName={editedUserMeta.name} onUpdate={handleTable4Update} />
+      )}
+      {activeTable === 'table5' && (
+        <Table5View plan={activePlan} userName={editedUserMeta.name} onUpdate={handleTable5Update} />
+      )}
+      {activeTable === 'table6' && (
+        <Table6View plan={activePlan} userName={editedUserMeta.name} />
       )}
 
       <ReferencePanel folderId={clientFolderId} />
@@ -242,7 +313,7 @@ export default function PlanEdit({
         </div>
       )}
 
-      {/* Action buttons — 保存（=スプレッドシートにエクスポート）+ 共有 */}
+      {/* Action buttons — 保存（=スプレッドシートにエクスポート）+ 承認 + 共有 */}
       <div style={S.stepActions}>
         <button
           style={{ ...S.primaryBtn, background: '#0f7c3f', opacity: saving ? 0.6 : 1 }}
@@ -250,6 +321,21 @@ export default function PlanEdit({
           onClick={handleSave}>
           {saving ? '保存中...' : '保存（Googleスプレッドシートにエクスポート）'}
         </button>
+        {onMarkApproved && (
+          activePlan.approved ? (
+            <span style={{ alignSelf: 'center', padding: '8px 16px', borderRadius: 8, background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', fontSize: 13, fontWeight: 700 }}>
+              ✓ 承認済み{activePlan.approvedAt ? `（${activePlan.approvedAt.slice(0, 10)}）` : ''}
+            </span>
+          ) : (
+            <button
+              style={{ ...S.secondaryBtn, opacity: busy ? 0.6 : 1, borderColor: '#0f7c3f', color: '#0f7c3f' }}
+              disabled={busy}
+              onClick={handleApprove}
+              title="このプランを利用者に承認されたプランとしてマークします">
+              このプランを承認
+            </button>
+          )
+        )}
         <button
           style={{ ...S.secondaryBtn, opacity: busy ? 0.6 : 1 }}
           disabled={busy}

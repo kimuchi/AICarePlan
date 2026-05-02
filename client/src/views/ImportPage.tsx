@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { S } from '../styles';
-import { previewImport, commitImport } from '../api';
+import { previewImport, commitImport, cleanupImports, type ImportCleanupResponse } from '../api';
 
 interface Props { onBack: () => void; toast: (msg: string) => void; onOpenDraft?: (planId: string) => void; }
 
@@ -12,6 +12,23 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
   const [results, setResults] = useState<any[] | null>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [forceMode, setForceMode] = useState<'auto' | 'shoki' | 'kyotaku'>('auto');
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<ImportCleanupResponse | null>(null);
+  const [cleanOldOnCommit, setCleanOldOnCommit] = useState(false);
+
+  const doCleanup = async () => {
+    if (cleaning) return;
+    setCleaning(true);
+    try {
+      const r = await cleanupImports();
+      setCleanupResult(r);
+      toast(`整理完了: ${r.totalDeleted}件をゴミ箱へ移動 / ${r.totalKept}件を保持`);
+    } catch (e: any) {
+      toast(`整理失敗: ${e.message}`);
+    } finally {
+      setCleaning(false);
+    }
+  };
 
   const doPreview = async () => {
     if (!files.length) return;
@@ -65,7 +82,18 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
       if (failed > 0) {
         setCommitError(`${failed}件のファイルで取り込みに失敗しました（タイムアウトを含む）。下の結果詳細を確認してください。`);
       }
-      toast('取り込み完了');
+
+      if (cleanOldOnCommit) {
+        try {
+          const cu = await cleanupImports();
+          setCleanupResult(cu);
+          toast(`取り込み完了（古いファイル ${cu.totalDeleted}件をゴミ箱へ移動）`);
+        } catch (e: any) {
+          toast(`取り込みは成功しましたが整理に失敗: ${e.message}`);
+        }
+      } else {
+        toast('取り込み完了');
+      }
     } catch (e: any) {
       const msg = `取り込みAPIでエラー: ${e.message || '不明なエラー'}`;
       setCommitError(msg);
@@ -87,11 +115,42 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
             <option value="kyotaku">居宅介護支援</option>
           </select>
         </div>
-        <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+        <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button style={S.primaryBtn} onClick={doPreview} disabled={!files.length || loading}>{loading ? '解析中...' : 'プレビュー作成'}</button>
           <button style={S.secondaryBtn} onClick={onBack}>戻る</button>
+          <button
+            style={{ ...S.secondaryBtn, marginLeft: 'auto', background: '#fff7ed', color: '#9a3412', border: '1px solid #fdba74' }}
+            onClick={doCleanup}
+            disabled={cleaning}
+            title="全利用者の取込ファイル（ケアプラン/アセスメント）から、最新1セット以外をゴミ箱へ移動します"
+          >
+            {cleaning ? '整理中...' : '🧹 重複した取込ファイルを整理'}
+          </button>
         </div>
       </div>
+
+      {cleanupResult && (
+        <div style={{ ...S.settingsPanel, marginBottom: 16, border: '1px solid #fed7aa', background: '#fffaf0' }}>
+          <h3 style={{ ...S.sectionTitle, marginTop: 0, color: '#9a3412' }}>整理結果</h3>
+          <div style={{ fontSize: 13, color: '#7c2d12', marginBottom: 8 }}>
+            対象 {cleanupResult.userCount} 利用者 / 削除 {cleanupResult.totalDeleted} 件 / 保持 {cleanupResult.totalKept} 件
+            （ゴミ箱から復元できます）
+          </div>
+          {cleanupResult.perUser.filter(u => u.careplan.deleted + u.assessment.deleted > 0).length === 0 ? (
+            <div style={{ fontSize: 12, color: '#7c2d12' }}>削除対象はありませんでした。</div>
+          ) : (
+            <div style={{ maxHeight: 240, overflowY: 'auto', fontSize: 12 }}>
+              {cleanupResult.perUser
+                .filter(u => u.careplan.deleted + u.assessment.deleted > 0)
+                .map((u, i) => (
+                  <div key={i} style={{ padding: '6px 0', borderBottom: '1px solid #fed7aa' }}>
+                    <b>{u.userName}</b>: ケアプラン {u.careplan.deleted}件削除（{u.careplan.kept}件保持） / アセスメント {u.assessment.deleted}件削除（{u.assessment.kept}件保持）
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {preview.length > 0 && (
         <div style={S.settingsPanel}>
@@ -108,6 +167,12 @@ export default function ImportPage({ onBack, toast, onOpenDraft }: Props) {
               {p.warnings?.length > 0 && <div style={{ color: '#b45309' }}>警告: {p.warnings.join(' / ')}</div>}
             </div>
           ))}
+          <div style={{ marginBottom: 10, fontSize: 13 }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={cleanOldOnCommit} onChange={e => setCleanOldOnCommit(e.target.checked)} />
+              取り込み後に古い取込ファイルをゴミ箱へ移動（最新1セットのみ残す）
+            </label>
+          </div>
           <button style={S.primaryBtn} onClick={doCommit} disabled={committing}>{committing ? '取り込み中...' : 'この内容で取り込む'}</button>
         </div>
       )}
