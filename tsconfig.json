@@ -20,15 +20,11 @@
     "paths": {
       "@/*": [
         "client/src/*"
-      ],
-      "@server/*": [
-        "server/*"
       ]
     }
   },
   "include": [
-    "client/src/**/*",
-    "server/**/*"
+    "client/src/**/*"
   ],
   "exclude": [
     "node_modules",
